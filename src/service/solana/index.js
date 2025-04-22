@@ -100,7 +100,7 @@ export default class SolanaWallet {
      * @arg {String} [params.nonce] - nonce from request platform endpoint
      * @arg {String} [params.domain] - domain of project
      * @arg {String} [params.url] - url of platform project
-     * @returns {Promise<{message: String, signature: String, address: String}>} - return signature of messages
+     * @returns {Promise<String>}>} - return signature of messages
      */
     signMessage = async (params) => {
         const exp = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
@@ -124,11 +124,7 @@ export default class SolanaWallet {
         const signature = nacl.sign.detached(encode, this.privateKey);
         const signToBase64 = Buffer.from(signature).toString('base64');
 
-        return {
-            message: params.message || '',
-            signature: signToBase64,
-            address: this.SolanaConfig.address.toString()
-        }
+        return signToBase64
     }
 
     /**
@@ -303,6 +299,6 @@ export default class SolanaWallet {
         const signature = await this.SolanaConfig.provider.sendRawTransaction(tx.serialize());
         await this.SolanaConfig.provider.confirmTransaction(signature, 'confirmed');
 
-        return {signature, tokenAddress: tokenAddress, mintAutority: this.SolanaConfig.address.toString()};
+        return tokenAddress;
     }
 }

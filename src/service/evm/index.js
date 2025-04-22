@@ -79,7 +79,7 @@ export default class EVMWallet {
      * @arg {String} params.nonce - nonce from request platform endpoint
      * @arg {String} params.domain - domain of project
      * @arg {String} params.url - url of platform project
-     * @returns {Promise<{message: String, signature: String, address: String}>} - return signature of messages
+     * @returns {Promise<String>} - return signature of messages
      */
     signMessage = async (params) => {
         const message = new SiweMessage({
@@ -96,11 +96,7 @@ export default class EVMWallet {
 
         const messageToSign = message.prepareMessage();
         const signature = await this.EvmConfig.wallet.signMessage(messageToSign);
-        return {
-            message: messageToSign,
-            signature: signature,
-            address: this.EvmConfig.address
-        }
+        return signature;
     }
 
     /**

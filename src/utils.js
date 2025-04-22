@@ -1,7 +1,7 @@
 // @ts-check
 
 import axios from "axios";
-import { DEFAULT_DOMAIN, DEFAULT_FEATURE, DEFAULT_VERSION } from "./contsant";
+import { DEFAULT_DOMAIN, DEFAULT_FEATURE, DEFAULT_NETWORK_WALLET, DEFAULT_VERSION } from "./contsant";
 
 /**
  * @param {String} subdomain - sub-domain url from website
@@ -32,4 +32,21 @@ export const baseRequest = (baseUrl, secure = true) => {
     req.defaults.headers.common['Content-Type'] = 'application/json';
 
     return req;
+}
+
+/**
+ * @param {NetworkInfo[]} data
+ * @param {String} network
+ * @param {Number} [chainId]
+ * @returns {NetworkInfo}
+ */
+export const filterBlockchainNetwork = (data, network, chainId) => {
+    let filtered;
+    if (typeof chainId === 'undefined' || typeof chainId !== 'number' || isNaN(chainId)) {
+        filtered = data.filter(item => item.key.startsWith('solana'));
+    } else {
+        filtered = data.filter(item => item.key.endsWith(chainId.toString()));
+    }
+
+    return filtered[0];
 }
