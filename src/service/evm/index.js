@@ -2,11 +2,13 @@
 
 import { ethers } from "ethers";
 import { SiweMessage } from "siwe";
+import { abi } from "./abi";
 
 /**
  * @class EVMWallet
  * @classdesc The evm wallet configuration and related with server
  */
+/**@type {import("../../lib/wallet.d.ts").WalletImplemented} */
 export default class EVMWallet {
     /**
     * @arg {Object} options
@@ -51,7 +53,10 @@ export default class EVMWallet {
         /** @type {string|undefined} */
         this.address = options.address || wallet.address;
 
+        this.abiFactory = abi;
+
         this.EvmConfig = {
+            abiFactory: this.abiFactory,
             address: wallet.address,
             domain: this.domain,
             origin: domainParse.origin,
@@ -62,15 +67,21 @@ export default class EVMWallet {
     }
 
     /**
+     * @returns {{abiFactory: string, address: string, domain: string, origin: string, rpcUrl: string, provider: ethers.JsonRpcProvider, wallet: ethers.Wallet}}
+     */
+    config = () => {
+        return this.EvmConfig;
+    }
+
+    /**
      * @arg {Object} params
-     * @arg {String} [params.message] - message to get signature
-     * @arg {Number} [params.nonce] - nonce from request platform endpoint
-     * @arg {String} [params.domain] - domain of project
-     * @arg {String} [params.url] - url of platform project
+     * @arg {String} params.message - message to get signature
+     * @arg {String} params.nonce - nonce from request platform endpoint
+     * @arg {String} params.domain - domain of project
+     * @arg {String} params.url - url of platform project
      * @returns {Promise<{message: String, signature: String, address: String}>} - return signature of messages
      */
     signMessage = async (params) => {
-
         const message = new SiweMessage({
             domain: params.domain,
             address: this.address,
@@ -89,6 +100,28 @@ export default class EVMWallet {
             message: messageToSign,
             signature: signature,
             address: this.EvmConfig.address
+        }
+    }
+
+    /**
+     * @param {String} factoryAddress - an address smart contract
+     * @param {String} tokenName - an token tokenName required
+     * @param {String} tokenSymbol - an token tokenSymbol required
+     * @returns {Promise<String|any>} - returning hash transaction of create token
+     */
+    createToken = async (factoryAddress, tokenName, tokenSymbol) => {
+        const contract = new ethers.Contract(factoryAddress, this.EvmConfig.abiFactory, this.EvmConfig.provider);
+        try {
+            const fee = await contract.getTokenCreationFee();
+            const tx = await contract.createToken(tokenName, tokenSymbol, {
+                value: fee
+            });
+
+            await tx.wait();
+            return tx.transactionHash;
+        } catch (error) {
+            console.error(error);
+            return error;
         }
     }
 }

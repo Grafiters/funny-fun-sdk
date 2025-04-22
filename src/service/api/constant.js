@@ -1,5 +1,3 @@
-// API DOCUMENTATION
-
 /**
  * @typedef {Object} NetworkInfo
  * @property {string} key - Chain ID with namespace (e.g., eip155:97)
@@ -29,3 +27,33 @@
  * @property {String} bondingCurveUsdTarget - 
  * @property {String} winnerMilestoneUsdTarget - 
 */
+
+/**
+ * @typedef {Object} tokenMetaData
+ * @property {String} blockchainKey
+ * @property {String} tokenName
+ * @property {String} tokenSymbol
+ * @property {String} tokenDescription
+ * @property {String} tokenImage
+ * @property {String} [tokenWebsite]
+ * @property {String} [tokenTwitter]
+ * @property {String} [tokenTelegram]
+ * @property {String} [tokenDiscord]
+ */
+
+/**
+ * @typedef {Object} tokens
+ * @property {String} tokenAddress
+ * @property {String} blockchainKey
+ * @property {String} quoteTokenId
+ * @property {String} initialBuyPrice
+ * @property {String} txHash
+ * @property {String} tokenName
+ * @property {String} tokenSymbol
+ * @property {String} tokenDescription
+ * @property {String} tokenImage
+ * @property {String} [tokenWebsite]
+ * @property {String} [tokenTwitter]
+ * @property {String} [tokenTelegram]
+ * @property {String} [tokenDiscord]
+ */

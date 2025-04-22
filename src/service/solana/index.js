@@ -1,11 +1,31 @@
-import { clusterApiUrl, Connection, Keypair } from "@solana/web3.js";
+// @ts-check
+
+import { clusterApiUrl, Connection, Keypair, PublicKey, SystemProgram, Transaction } from "@solana/web3.js";
 import { Header, Payload, SIWS } from "@web3auth/sign-in-with-solana";
 import nacl from "tweetnacl";
+import { DEFAULT_TOKEN_SUPPLY, MINT_SIZE } from "../../contsant";
+import { parseUnits } from "ethers";
+import {
+    ASSOCIATED_TOKEN_PROGRAM_ID,
+    AuthorityType,
+    createAssociatedTokenAccountIdempotentInstruction,
+    createInitializeMint2Instruction,
+    createMintToInstruction,
+    createSetAuthorityInstruction,
+    createTransferCheckedInstruction,
+    getAssociatedTokenAddress,
+    getAssociatedTokenAddressSync,
+    getMintLen,
+    TOKEN_PROGRAM_ID 
+} from "@solana/spl-token";
+import { createCreateMetadataAccountV3Instruction } from "./metaplex";
 
 /**
  * @class SolanaWallet
  * @classdesc the solana walet configration and related with server
  */
+
+    /** @type {import("../../lib/wallet.d.ts").WalletImplemented} */
 export default class SolanaWallet {
     /**
     * @arg {Object} options
@@ -67,6 +87,13 @@ export default class SolanaWallet {
         }
     }
 
+     /**
+     * @returns {{address: PublicKey, domain: string, origin: string, cluster: string, provider: Connection, wallet: Keypair}}
+     */
+     config = () => {
+        return this.SolanaConfig;
+    }
+
     /**
      * @arg {Object} params
      * @arg {String} [params.message] - message to get signature
@@ -75,7 +102,7 @@ export default class SolanaWallet {
      * @arg {String} [params.url] - url of platform project
      * @returns {Promise<{message: String, signature: String, address: String}>} - return signature of messages
      */
-    signMessages = async (params) => {
+    signMessage = async (params) => {
         const exp = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
         const header = new Header();
         header.t = 'sip99';
@@ -102,5 +129,180 @@ export default class SolanaWallet {
             signature: signToBase64,
             address: this.SolanaConfig.address.toString()
         }
+    }
+
+    /**
+     * @param {String} tokenName - an name of token
+     * @param {String} tokenSymbol - an symbol of token
+     * @param {String} factoryAddress - an factory address from config
+     * @param {String} [metadataUrl] - an token metadata url
+     * @param {String} [tokenCreationFee] - an creation fee 
+     * @returns {Promise<String|any>} - returning hash transaction of create token
+     */
+    createToken = async (tokenName, tokenSymbol, factoryAddress, metadataUrl, tokenCreationFee) => {
+        if (!metadataUrl){
+            throw new Error(`meta data url is required`);
+        }
+
+        if (!tokenCreationFee){
+            throw new Error(`token creation is required`);
+        }
+        const tokenKeypair = Keypair.generate();
+        const rentExamp = await this.SolanaConfig.provider.getMinimumBalanceForRentExemption(MINT_SIZE);
+        const space = getMintLen([]);
+        const tokenDecimals = 6;
+        const tokenSupply = DEFAULT_TOKEN_SUPPLY * 10 ** tokenDecimals;
+        const transferAddress = factoryAddress;
+        const feeAmount = parseUnits(tokenCreationFee, tokenDecimals);
+        const tokenAddress = tokenKeypair.publicKey.toString();
+        const toWallet = new PublicKey(transferAddress);
+        const mint = new PublicKey(transferAddress);
+        const fromTokenAddress = await getAssociatedTokenAddress(mint, this.SolanaConfig.address);
+        const toTokenAddress = await getAssociatedTokenAddress(mint, toWallet);
+
+        const ata = getAssociatedTokenAddressSync(
+            tokenKeypair.publicKey,
+            this.SolanaConfig.address,
+            false,
+            TOKEN_PROGRAM_ID,
+            ASSOCIATED_TOKEN_PROGRAM_ID
+        )
+
+        const tx = new Transaction();
+        // create account token
+        tx.add(
+            SystemProgram.createAccount({
+                fromPubkey: this.SolanaConfig.address,
+                newAccountPubkey: tokenKeypair.publicKey,
+                lamports: rentExamp,
+                space: space,
+                programId: TOKEN_PROGRAM_ID
+            })
+        );
+
+        // initsialisasi mint
+        tx.add(
+            createInitializeMint2Instruction(
+               tokenKeypair.publicKey,
+               tokenDecimals,
+               this.SolanaConfig.address,
+               this.SolanaConfig.address,
+               TOKEN_PROGRAM_ID,
+            ),
+        );
+
+        // Buat ATA
+        tx.add(
+            createAssociatedTokenAccountIdempotentInstruction(
+               this.SolanaConfig.address,
+               ata,
+               this.SolanaConfig.address,
+               tokenKeypair.publicKey,
+               TOKEN_PROGRAM_ID,
+               ASSOCIATED_TOKEN_PROGRAM_ID,
+            ),
+        );
+
+        // Mint token ke ATA
+        tx.add(
+            createMintToInstruction(
+                tokenKeypair.publicKey,
+                ata,
+                this.SolanaConfig.address,
+                tokenSupply,
+                [],
+                TOKEN_PROGRAM_ID,
+            ),
+        );
+
+        // Buat metadata        
+        tx.add(
+            createCreateMetadataAccountV3Instruction({
+                mint: tokenKeypair.publicKey,
+                authority: this.SolanaConfig.address,
+                payer: this.SolanaConfig.address,
+                name: tokenName,
+                symbol: tokenSymbol,
+                uri: metadataUrl,
+                sellerFeeBasisPoints: 0,
+            })
+        );
+
+         // Remove mint authority
+        tx.add(
+            createSetAuthorityInstruction(
+               tokenKeypair.publicKey,
+               this.SolanaConfig.address,
+               AuthorityType.MintTokens,
+               null,
+               [],
+               TOKEN_PROGRAM_ID,
+            ),
+        );
+
+        // Remove freeze authority
+        tx.add(
+            createSetAuthorityInstruction(
+               tokenKeypair.publicKey,
+               this.SolanaConfig.address,
+               AuthorityType.FreezeAccount,
+               null,
+               [],
+               TOKEN_PROGRAM_ID,
+            ),
+        );
+
+        // Transfer fee to token factory contract address
+        const transferFee = SystemProgram.transfer({
+            fromPubkey: this.SolanaConfig.address,
+            toPubkey: toWallet,
+            lamports: feeAmount,
+        });
+        tx.add(transferFee);
+
+        // Create associated token account for the user and transfer the token supply
+        tx.add(
+            createAssociatedTokenAccountIdempotentInstruction(
+               this.SolanaConfig.address,
+               fromTokenAddress,
+               this.SolanaConfig.address,
+               mint,
+               TOKEN_PROGRAM_ID,
+               ASSOCIATED_TOKEN_PROGRAM_ID,
+            ),
+        );
+
+        tx.add(
+            createAssociatedTokenAccountIdempotentInstruction(
+               this.SolanaConfig.address,
+               toTokenAddress,
+               toWallet,
+               mint,
+               TOKEN_PROGRAM_ID,
+               ASSOCIATED_TOKEN_PROGRAM_ID,
+            ),
+        );
+
+        const transferSupplyToken = createTransferCheckedInstruction(
+            fromTokenAddress,
+            mint,
+            toTokenAddress,
+            this.SolanaConfig.address,
+            Number(tokenSupply),
+            tokenDecimals,
+        );
+        tx.add(transferSupplyToken);
+
+        // 8. Sign and send
+        const blockhash = await this.SolanaConfig.provider.getLatestBlockhash('finalized');
+        tx.recentBlockhash = blockhash.blockhash;
+        tx.feePayer = this.SolanaConfig.address;
+
+        tx.sign(this.SolanaConfig.wallet, tokenKeypair);
+
+        const signature = await this.SolanaConfig.provider.sendRawTransaction(tx.serialize());
+        await this.SolanaConfig.provider.confirmTransaction(signature, 'confirmed');
+
+        return {signature, tokenAddress: tokenAddress, mintAutority: this.SolanaConfig.address.toString()};
     }
 }
