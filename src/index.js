@@ -123,15 +123,20 @@ export default class FunnyFunSdk {
         if (!this.blockchain) {
             await this.getBlockchainData();
         }
-        const deploy = await this.config.wallet.createToken(
-            tokenName,
-            tokenSymbol,
-            this.blockchain?.tokenFactoryContractAddress,
-            this.blockchain?.tokenCreationFee,
-            metadataUrl
-        );
+        
+        try {
+            const deploy = await this.config.wallet.createToken(
+                tokenName,
+                tokenSymbol,
+                this.blockchain?.tokenFactoryContractAddress,
+                this.blockchain?.tokenCreationFee,
+                metadataUrl
+            );
 
-        return deploy;
+            return deploy;
+        } catch (/** @type {any} */ error) {
+            throw new Error(error);
+        }
     }
 
     /**

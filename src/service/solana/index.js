@@ -153,153 +153,158 @@ export default class SolanaWallet {
         const tokenAddress = tokenKeypair.publicKey.toString();
         const toWallet = new PublicKey(transferAddress);
         const mint = new PublicKey(transferAddress);
-        const fromTokenAddress = await getAssociatedTokenAddress(mint, this.SolanaConfig.address);
-        const toTokenAddress = await getAssociatedTokenAddress(mint, toWallet);
 
-        const ata = getAssociatedTokenAddressSync(
-            tokenKeypair.publicKey,
-            this.SolanaConfig.address,
-            false,
-            TOKEN_PROGRAM_ID,
-            ASSOCIATED_TOKEN_PROGRAM_ID
-        )
+        try {
+            const fromTokenAddress = await getAssociatedTokenAddress(mint, this.SolanaConfig.address);
+            const toTokenAddress = await getAssociatedTokenAddress(mint, toWallet);
 
-        const tx = new Transaction();
-        // create account token
-        tx.add(
-            SystemProgram.createAccount({
-                fromPubkey: this.SolanaConfig.address,
-                newAccountPubkey: tokenKeypair.publicKey,
-                lamports: rentExamp,
-                space: space,
-                programId: TOKEN_PROGRAM_ID
-            })
-        );
-
-        // initsialisasi mint
-        tx.add(
-            createInitializeMint2Instruction(
-               tokenKeypair.publicKey,
-               tokenDecimals,
-               this.SolanaConfig.address,
-               this.SolanaConfig.address,
-               TOKEN_PROGRAM_ID,
-            ),
-        );
-
-        // Buat ATA
-        tx.add(
-            createAssociatedTokenAccountIdempotentInstruction(
-               this.SolanaConfig.address,
-               ata,
-               this.SolanaConfig.address,
-               tokenKeypair.publicKey,
-               TOKEN_PROGRAM_ID,
-               ASSOCIATED_TOKEN_PROGRAM_ID,
-            ),
-        );
-
-        // Mint token ke ATA
-        tx.add(
-            createMintToInstruction(
+            const ata = getAssociatedTokenAddressSync(
                 tokenKeypair.publicKey,
+                this.SolanaConfig.address,
+                false,
+                TOKEN_PROGRAM_ID,
+                ASSOCIATED_TOKEN_PROGRAM_ID
+            )
+
+            const tx = new Transaction();
+            // create account token
+            tx.add(
+                SystemProgram.createAccount({
+                    fromPubkey: this.SolanaConfig.address,
+                    newAccountPubkey: tokenKeypair.publicKey,
+                    lamports: rentExamp,
+                    space: space,
+                    programId: TOKEN_PROGRAM_ID
+                })
+            );
+
+            // initsialisasi mint
+            tx.add(
+                createInitializeMint2Instruction(
+                tokenKeypair.publicKey,
+                tokenDecimals,
+                this.SolanaConfig.address,
+                this.SolanaConfig.address,
+                TOKEN_PROGRAM_ID,
+                ),
+            );
+
+            // Buat ATA
+            tx.add(
+                createAssociatedTokenAccountIdempotentInstruction(
+                this.SolanaConfig.address,
                 ata,
                 this.SolanaConfig.address,
-                tokenSupply,
+                tokenKeypair.publicKey,
+                TOKEN_PROGRAM_ID,
+                ASSOCIATED_TOKEN_PROGRAM_ID,
+                ),
+            );
+
+            // Mint token ke ATA
+            tx.add(
+                createMintToInstruction(
+                    tokenKeypair.publicKey,
+                    ata,
+                    this.SolanaConfig.address,
+                    tokenSupply,
+                    [],
+                    TOKEN_PROGRAM_ID,
+                ),
+            );
+
+            // Buat metadata        
+            tx.add(
+                createCreateMetadataAccountV3Instruction({
+                    mint: tokenKeypair.publicKey,
+                    authority: this.SolanaConfig.address,
+                    payer: this.SolanaConfig.address,
+                    name: tokenName,
+                    symbol: tokenSymbol,
+                    uri: metadataUrl,
+                    sellerFeeBasisPoints: 0,
+                })
+            );
+
+            // Remove mint authority
+            tx.add(
+                createSetAuthorityInstruction(
+                tokenKeypair.publicKey,
+                this.SolanaConfig.address,
+                AuthorityType.MintTokens,
+                null,
                 [],
                 TOKEN_PROGRAM_ID,
-            ),
-        );
+                ),
+            );
 
-        // Buat metadata        
-        tx.add(
-            createCreateMetadataAccountV3Instruction({
-                mint: tokenKeypair.publicKey,
-                authority: this.SolanaConfig.address,
-                payer: this.SolanaConfig.address,
-                name: tokenName,
-                symbol: tokenSymbol,
-                uri: metadataUrl,
-                sellerFeeBasisPoints: 0,
-            })
-        );
+            // Remove freeze authority
+            tx.add(
+                createSetAuthorityInstruction(
+                tokenKeypair.publicKey,
+                this.SolanaConfig.address,
+                AuthorityType.FreezeAccount,
+                null,
+                [],
+                TOKEN_PROGRAM_ID,
+                ),
+            );
 
-         // Remove mint authority
-        tx.add(
-            createSetAuthorityInstruction(
-               tokenKeypair.publicKey,
-               this.SolanaConfig.address,
-               AuthorityType.MintTokens,
-               null,
-               [],
-               TOKEN_PROGRAM_ID,
-            ),
-        );
+            // Transfer fee to token factory contract address
+            const transferFee = SystemProgram.transfer({
+                fromPubkey: this.SolanaConfig.address,
+                toPubkey: toWallet,
+                lamports: feeAmount,
+            });
+            tx.add(transferFee);
 
-        // Remove freeze authority
-        tx.add(
-            createSetAuthorityInstruction(
-               tokenKeypair.publicKey,
-               this.SolanaConfig.address,
-               AuthorityType.FreezeAccount,
-               null,
-               [],
-               TOKEN_PROGRAM_ID,
-            ),
-        );
+            // Create associated token account for the user and transfer the token supply
+            tx.add(
+                createAssociatedTokenAccountIdempotentInstruction(
+                this.SolanaConfig.address,
+                fromTokenAddress,
+                this.SolanaConfig.address,
+                mint,
+                TOKEN_PROGRAM_ID,
+                ASSOCIATED_TOKEN_PROGRAM_ID,
+                ),
+            );
 
-        // Transfer fee to token factory contract address
-        const transferFee = SystemProgram.transfer({
-            fromPubkey: this.SolanaConfig.address,
-            toPubkey: toWallet,
-            lamports: feeAmount,
-        });
-        tx.add(transferFee);
+            tx.add(
+                createAssociatedTokenAccountIdempotentInstruction(
+                this.SolanaConfig.address,
+                toTokenAddress,
+                toWallet,
+                mint,
+                TOKEN_PROGRAM_ID,
+                ASSOCIATED_TOKEN_PROGRAM_ID,
+                ),
+            );
 
-        // Create associated token account for the user and transfer the token supply
-        tx.add(
-            createAssociatedTokenAccountIdempotentInstruction(
-               this.SolanaConfig.address,
-               fromTokenAddress,
-               this.SolanaConfig.address,
-               mint,
-               TOKEN_PROGRAM_ID,
-               ASSOCIATED_TOKEN_PROGRAM_ID,
-            ),
-        );
+            const transferSupplyToken = createTransferCheckedInstruction(
+                fromTokenAddress,
+                mint,
+                toTokenAddress,
+                this.SolanaConfig.address,
+                Number(tokenSupply),
+                tokenDecimals,
+            );
+            tx.add(transferSupplyToken);
 
-        tx.add(
-            createAssociatedTokenAccountIdempotentInstruction(
-               this.SolanaConfig.address,
-               toTokenAddress,
-               toWallet,
-               mint,
-               TOKEN_PROGRAM_ID,
-               ASSOCIATED_TOKEN_PROGRAM_ID,
-            ),
-        );
+            // 8. Sign and send
+            const blockhash = await this.SolanaConfig.provider.getLatestBlockhash('finalized');
+            tx.recentBlockhash = blockhash.blockhash;
+            tx.feePayer = this.SolanaConfig.address;
 
-        const transferSupplyToken = createTransferCheckedInstruction(
-            fromTokenAddress,
-            mint,
-            toTokenAddress,
-            this.SolanaConfig.address,
-            Number(tokenSupply),
-            tokenDecimals,
-        );
-        tx.add(transferSupplyToken);
+            tx.sign(this.SolanaConfig.wallet, tokenKeypair);
 
-        // 8. Sign and send
-        const blockhash = await this.SolanaConfig.provider.getLatestBlockhash('finalized');
-        tx.recentBlockhash = blockhash.blockhash;
-        tx.feePayer = this.SolanaConfig.address;
+            const signature = await this.SolanaConfig.provider.sendRawTransaction(tx.serialize());
+            await this.SolanaConfig.provider.confirmTransaction(signature, 'confirmed');
 
-        tx.sign(this.SolanaConfig.wallet, tokenKeypair);
-
-        const signature = await this.SolanaConfig.provider.sendRawTransaction(tx.serialize());
-        await this.SolanaConfig.provider.confirmTransaction(signature, 'confirmed');
-
-        return tokenAddress;
+            return tokenAddress;
+        } catch (/** @type {any} */ error) {
+            throw new Error(error);
+        }
     }
 
     /**

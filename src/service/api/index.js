@@ -81,9 +81,8 @@ export default class Platform {
             /** @type {import("./constant").tokenBalanceInfo} */
             const data = req.data;
             return data;
-        } catch (error) {
-            console.error(error);
-            throw new Error(`Cannot request to get detail account balance info`);
+        } catch (/** @type {any} */ error) {
+            throw new Error(error);
         }
     }
 
@@ -121,9 +120,8 @@ export default class Platform {
             /** @type {import("./constant").NetworkInfo[]} */
             const data = res.data;
             return data
-        } catch (error) {
-            console.error(error)
-            return error
+        } catch (/** @type {any} */ error) {
+            throw new Error(error);
         }
     }
 
@@ -142,9 +140,8 @@ export default class Platform {
 
             /**@type {import("./constant").AppConfig} */
             return res.data;
-        } catch (error) {
-            console.error(error)
-            return error
+        } catch (/** @type {any} */ error) {
+            throw new Error(error);
         }
     }
 
@@ -160,9 +157,8 @@ export default class Platform {
             /**@type {import("./constant").tokenLists[]} */
             const res = req.data
             return res;
-        } catch ( /**@type {any} */ error) {
-            console.error(error)
-            throw new Error(`Cannot get data list of tokens`);
+        } catch (/** @type {any} */ error) {
+            throw new Error(error);
         }
     }
 
@@ -175,9 +171,8 @@ export default class Platform {
             const req = await this.fetch.get('/auth-check');
             const res = req.data;
             return res;
-        } catch (error) {
-            console.error(error)
-            throw new Error(`Cannot get data auth user`);
+        } catch (/** @type {any} */ error) {
+            throw new Error(error);
         }
     }
 
@@ -206,9 +201,8 @@ export default class Platform {
             /**@type {string} */
             const res = req.data;
             return res
-        } catch (error) {
-            console.error(error)
-            throw new Error(`Cannot request to token meta data`);
+        } catch (/** @type {any} */ error) {
+            throw new Error(error);
         }
     }
 
@@ -235,9 +229,8 @@ export default class Platform {
             const req = await this.fetch.post('/tokens', params);
             const res = req.data;
             return res;
-        } catch (error) {
-            console.error(error)
-            throw new Error(`Cannot request to token meta data`);
+        } catch (/** @type {any} */ error) {
+            throw new Error(error);
         }
     }
 
@@ -252,9 +245,8 @@ export default class Platform {
             const req = await this.fetch.get(`/deposits?${convertToQuery}`);
             /** @type {import("./constant").deposits[]} */
             return req.data;
-        } catch ( /** @type {any} */ error) {
-            console.error(error);
-            throw new Error(`Cannot request to token meta data`);
+        } catch (/** @type {any} */ error) {
+            throw new Error(error);
         }
     }
 
@@ -269,9 +261,8 @@ export default class Platform {
 
             /** @type {{message: string, orderUid: string}} */
             return req.data;
-        } catch (error) {
-            console.error(error);
-            throw new Error(`Cannot request to token meta data`);
+        } catch (/** @type {any} */ error) {
+            throw new Error(error);
         }
     }
 
@@ -286,9 +277,8 @@ export default class Platform {
             const req = await this.fetch.get(`/withdrawals?${convertToQuery}`);
             /** @type {import("./constant").withdrawals[]} */
             return req.data;
-        } catch (error) {
-            console.error(error);
-            throw new Error(`Cannot request to token meta data`);
+        } catch (/** @type {any} */ error) {
+            throw new Error(error);
         }
     }
 
@@ -304,9 +294,8 @@ export default class Platform {
 
             /** @type {import("./constant").markets[]}*/
             return req.data;
-        } catch (error) {
-            console.error(error);
-            throw new Error(`Cannot request to get all markets data`);
+        } catch (/** @type {any} */ error) {
+            throw new Error(error);
         }
     }
 
@@ -322,9 +311,8 @@ export default class Platform {
 
             /** @type {import("./constant").transactions[]}*/
             return req.data;
-        } catch (error) {
-            console.error(error);
-            throw new Error(`Cannot request to transaction data`);
+        } catch (/** @type {any} */ error) {
+            throw new Error(error);
         }
     }
 
@@ -339,9 +327,8 @@ export default class Platform {
 
             /** @type {import("./constant").trades[]}*/
             return req.data;
-        } catch (error) {
-            console.error(error);
-            throw new Error(`Cannot request to trades data`);
+        } catch (/** @type {any} */ error) {
+            throw new Error(error);
         }
     }
 
@@ -356,9 +343,8 @@ export default class Platform {
 
             /**@type {{message: string, orderUid: string}} */
             return req.data;
-        } catch (error) {
-            console.error(error);
-            throw new Error(`Cannot request to create trade order`);
+        } catch (/** @type {any} */ error) {
+            throw new Error(error);
         }
     }
 
@@ -376,9 +362,8 @@ export default class Platform {
             
             /**@type {import("./constant").amountData} */
             return req.data;
-        } catch (error) {
-            console.error(error);
-            throw new Error(`Cannot request to get result amount`);
+        } catch (/** @type {any} */ error) {
+            throw new Error(error);
         }
     }   
 }

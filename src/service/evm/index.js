@@ -119,9 +119,8 @@ export default class EVMWallet {
 
             await tx.wait();
             return tx.transactionHash;
-        } catch (error) {
-            console.error(error);
-            return error;
+        } catch (/** @type {any} */ error) {
+            throw new Error(error);
         }
     }
 
