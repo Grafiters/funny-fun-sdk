@@ -2,7 +2,10 @@
   "name": "funny-fun-sdk",
   "version": "1.0.0",
   "main": "index.js",
-  "scripts": {},
+  "scripts": {
+    "build": "tsc",
+    "prepare": "npm run build"
+  },
   "keywords": [],
   "author": "backend-dev",
   "license": "MIT",

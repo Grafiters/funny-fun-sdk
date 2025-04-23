@@ -2,7 +2,7 @@
 
 import { ethers } from "ethers";
 import { SiweMessage } from "siwe";
-import { abi } from "./abi";
+import { abi, erc20abi, paymentManagerAbi } from "./abi";
 
 /**
  * @class EVMWallet
@@ -54,9 +54,13 @@ export default class EVMWallet {
         this.address = options.address || wallet.address;
 
         this.abiFactory = abi;
+        this.abiPayment = paymentManagerAbi;
+        this.abierc20 = erc20abi;
 
         this.EvmConfig = {
             abiFactory: this.abiFactory,
+            abiPayment: this.abiPayment,
+            abierc20: erc20abi,
             address: wallet.address,
             domain: this.domain,
             origin: domainParse.origin,
@@ -118,6 +122,95 @@ export default class EVMWallet {
         } catch (error) {
             console.error(error);
             return error;
+        }
+    }
+
+    /**
+     * deposit function
+     * @param {String} depositAddress
+     * @param {String} depositAmount
+     * @param {String} [tokenAddress]
+     * @param {Number} [tokenDecimal]
+     * @returns {Promise<string>}
+     */
+    deposit = async(depositAddress, depositAmount, tokenAddress, tokenDecimal = 18) => {
+        const contract = new ethers.Contract(depositAddress, this.EvmConfig.abiPayment, this.EvmConfig.provider);
+
+        try {
+            const tx = await contract.deposit({
+                value: ethers.parseEther(depositAmount)
+            })
+
+            await tx.wait();
+            return tx.transactionHash;
+        } catch (/** @type {any}*/error) {
+            throw new Error(error);
+        }
+    }
+
+    /**
+     * deposit function
+     * @param {String} depositAddress
+     * @param {String} depositAmount
+     * @param {String} [tokenAddress]
+     * @param {Number} [tokenDecimal]
+     */
+    depositToken = async(depositAddress, depositAmount, tokenAddress, tokenDecimal = 18) => {
+        if (!tokenAddress) throw new Error(`token address is required`);
+        const contract = new ethers.Contract(depositAddress, this.EvmConfig.abiPayment, this.EvmConfig.provider);
+        const allowance = await this.allowance(depositAddress, tokenAddress);
+        const amount = ethers.parseUnits(depositAmount, tokenDecimal);
+        if (allowance < amount) {
+            await this.approve(depositAmount, depositAddress, tokenAddress, tokenDecimal);
+        }
+
+        try {
+            const tx = await contract.depositToken(
+                tokenAddress,
+                amount
+            );
+
+            const receipt = await tx.wait();
+            return receipt.transactionHash;
+        } catch (/** @type {any}*/error) {
+            throw new Error(error);
+        }
+    }
+
+    /**
+     * allowance erc20 from user
+     * @param {String} depositAddress
+     * @param {String} tokenAddress
+     * @returns {Promise<number>}
+     */
+    allowance = async(depositAddress, tokenAddress) => {
+        const contract = new ethers.Contract(tokenAddress, this.EvmConfig.abierc20, this.EvmConfig.provider);
+        try {
+            const allowance = await contract.allowance(depositAddress);
+
+            return allowance;
+        } catch (/** @type {any}*/error) {
+            throw new Error(error);
+        }
+    }
+
+    /**
+     * approve amount to token address with executor is deposit address
+     * @param {String} depositAmount
+     * @param {String} depositAddress
+     * @param {String} tokenAddress
+     * @param {Number} tokenDecimal
+     * @returns {Promise<string>}
+     */
+    approve = async(depositAmount, depositAddress, tokenAddress, tokenDecimal) => {
+        const contract = new ethers.Contract(tokenAddress, this.EvmConfig.abierc20, this.EvmConfig.provider);
+        try {
+            const tx = await contract.approve(depositAddress, ethers.parseUnits(depositAmount, tokenDecimal))
+            await tx.wait();
+
+            return tx.transactionHash;
+        } catch (/** @type {any}*/error) {
+            throw new Error(error);
         }
     }
 }

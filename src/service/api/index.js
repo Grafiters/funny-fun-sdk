@@ -70,15 +70,15 @@ export default class Platform {
 
     /**
      * userAccount data
-     * @param {tokenBalanceQuery} query
-     * @returns {Promise<tokenBalanceInfo>}
+     * @param {import("./constant").tokenBalanceQuery} query
+     * @returns {Promise<import("./constant").tokenBalanceInfo>}
      */
     account = async (query) => {
         const convertToQuery = objectToQuery(query);
         try {
             const req = await this.fetch.get(`/accounts?${convertToQuery}`);
 
-            /** @type {tokenBalanceInfo} */
+            /** @type {import("./constant").tokenBalanceInfo} */
             const data = req.data;
             return data;
         } catch (error) {
@@ -106,7 +106,7 @@ export default class Platform {
     }
 
     /**
-     * @returns {Promise<NetworkInfo[]|any>} - return with format network info or data blockchain has implemanted on platform
+     * @returns {Promise<import("./constant").NetworkInfo[]|any>} - return with format network info or data blockchain has implemanted on platform
      */
     blockchains = async () => {
         try {
@@ -118,7 +118,7 @@ export default class Platform {
                 return null;
             }
 
-            /** @type {NetworkInfo[]} */
+            /** @type {import("./constant").NetworkInfo[]} */
             const data = res.data;
             return data
         } catch (error) {
@@ -128,7 +128,7 @@ export default class Platform {
     }
 
     /**
-     * @returns {Promise<AppConfig|any>} - return with format network info or data blockchain has implemanted on platform
+     * @returns {Promise<import("./constant").AppConfig|any>} - return with format network info or data blockchain has implemanted on platform
      */
     config = async () => {
         try {
@@ -140,7 +140,7 @@ export default class Platform {
                 return null;
             }
 
-            /**@type {AppConfig} */
+            /**@type {import("./constant").AppConfig} */
             return res.data;
         } catch (error) {
             console.error(error)
@@ -151,13 +151,13 @@ export default class Platform {
     /**
      * get token data spesified by network
      * @param {String} blockchainKey - blockchain key of network
-     * @returns {Promise<tokenLists[]>}
+     * @returns {Promise<import("./constant").tokenLists[]>}
      */
     tokens = async (blockchainKey) => {
         try {
             const req = await this.fetch.get(`/tokens?blockchainKey=${blockchainKey}`);
 
-            /**@type {tokenLists[]} */
+            /**@type {import("./constant").tokenLists[]} */
             const res = req.data
             return res;
         } catch ( /**@type {any} */ error) {
@@ -183,7 +183,7 @@ export default class Platform {
 
     /**
      * upload metadata to ipfs
-     * @param {tokenMetaData} params - body parameter to request
+     * @param {import("./constant").tokenMetaData} params - body parameter to request
      * @returns {Promise<String>}
      */
     uploadMetaData = async (params) => {
@@ -214,7 +214,7 @@ export default class Platform {
 
 
     /**
-     * @param {tokens} params - body params for token creation
+     * @param {import("./constant").tokens} params - body params for token creation
      */
     uploadTokenData = async (params) => {
         const isImage = dataUrl(params.tokenImage);
@@ -243,14 +243,14 @@ export default class Platform {
 
     /**
      * get depost list data
-     * @param {depositQuery} query
-     * @returns {Promise<deposit[]>}
+     * @param {import("./constant").depositQuery} query
+     * @returns {Promise<import("./constant").deposits[]>}
      */
     deposit = async (query) => {
         const convertToQuery = objectToQuery(query);
         try {
             const req = await this.fetch.get(`/deposits?${convertToQuery}`);
-            /** @type {deposit[]} */
+            /** @type {import("./constant").deposits[]} */
             return req.data;
         } catch ( /** @type {any} */ error) {
             console.error(error);
@@ -260,14 +260,14 @@ export default class Platform {
 
     /**
      * post withdrawals request
-     * @param {withdrawalRequest} params
-     * @returns {Promise<withdrawals>}
+     * @param {import("./constant").withdrawalRequest} params
+     * @returns {Promise<{message: string, withdrawalUid: string}>}
      */
     withdrawalRequest = async (params) => {
         try {
             const req = await this.fetch.post('/withdrawals', params);
 
-            /** @type {withdrawals} */
+            /** @type {{message: string, orderUid: string}} */
             return req.data;
         } catch (error) {
             console.error(error);
@@ -277,14 +277,14 @@ export default class Platform {
 
     /**
      * get list of data withdrawals
-     * @param {withdrawalQuery} query
-     * @returns {Promise<withdrawals[]>}
+     * @param {import("./constant").withdrawalQuery} query
+     * @returns {Promise<import("./constant").withdrawals[]>}
      */
     withdraw = async (query) => {
         const convertToQuery = objectToQuery(query);
         try {
             const req = await this.fetch.get(`/withdrawals?${convertToQuery}`);
-            /** @type {withdrawals[]} */
+            /** @type {import("./constant").withdrawals[]} */
             return req.data;
         } catch (error) {
             console.error(error);
@@ -294,15 +294,15 @@ export default class Platform {
 
     /**
      * get list of market
-     * @param {marketFilterQuery} query - filtering query of market
-     * @returns {Promise<markets[]>}
+     * @param {import("./constant").marketFilterQuery} query - filtering query of market
+     * @returns {Promise<import("./constant").markets[]>}
      */
     market = async (query) => {
         const convertToQuery = objectToQuery(query);
         try {
             const req = await this.fetch.get(`/markets?${convertToQuery}`);
 
-            /** @type {markets[]}*/
+            /** @type {import("./constant").markets[]}*/
             return req.data;
         } catch (error) {
             console.error(error);
@@ -312,15 +312,15 @@ export default class Platform {
 
     /**
      * get transaction with filter
-     * @param {transactionQuery} query - query for transaction data
-     * @returns {Promise<transactions[]>}
+     * @param {import("./constant").transactionQuery} query - query for transaction data
+     * @returns {Promise<import("./constant").transactions[]>}
      */
     transaction = async(query) => {
         const convertToQuery = objectToQuery(query);
         try {
             const req = await this.fetch.get(`/transactions?${convertToQuery}`);
 
-            /** @type {transactions[]}*/
+            /** @type {import("./constant").transactions[]}*/
             return req.data;
         } catch (error) {
             console.error(error);
@@ -329,15 +329,15 @@ export default class Platform {
     }
 
     /**
-     * @param {tradeQuery} query - query for trade history
-     * @returns {Promise<trades[]>}
+     * @param {import("./constant").tradeQuery} query - query for trade history
+     * @returns {Promise<import("./constant").trades[]>}
      */
     trade = async(query) => {
         const convertToQuery = objectToQuery(query);
         try {
             const req = await this.fetch.get(`/trades?${convertToQuery}`);
 
-            /** @type {trades[]}*/
+            /** @type {import("./constant").trades[]}*/
             return req.data;
         } catch (error) {
             console.error(error);
@@ -347,7 +347,7 @@ export default class Platform {
 
     /**
      * make trade request creation
-     * @param {tokenOrder} params
+     * @param {import("./constant").tokenOrder} params
      * @returns {Promise<{message: string, orderUid: string}>}
      */
     orderCreation = async(params) => {
@@ -363,14 +363,18 @@ export default class Platform {
     }
 
     /**
-     * @param {marketRequest} params
-     * @returns {Promise<amountData>}
+     * get estimated amount base by pair market e.g (quote or base)
+     * market type declaration
+     * price - quote on pair market
+     * amount - base on pair market
+     * @param {import("./constant").marketRequest} params
+     * @returns {Promise<import("./constant").amountData>}
      */
-    markeTypeAmountOrPrice = async(params) => {
+    estimatedAmountMarkets = async(params) => {
         try {
             const req = await this.fetch.post(`/market-${params.side}-${params.marketType}`, params);
             
-            /**@type {amountData} */
+            /**@type {import("./constant").amountData} */
             return req.data;
         } catch (error) {
             console.error(error);

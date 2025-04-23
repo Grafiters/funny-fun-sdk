@@ -11,6 +11,7 @@
  * @property {string} lastIndexedBlockNumber - The last block number that was indexed (as string)
  */
 
+import { PublicKey } from "@solana/web3.js";
 // This file only contains type definitions for reuse via JSDoc.
 
 /** 
@@ -105,9 +106,8 @@
  * deposit creation
  * @typedef {Object} depositsCreation
  * @property {string} blockchainKey
- * @property {string} tokenId
- * @property {string} txHash
- * @property {string} amount
+ * @property {string} [tokenId] - get from data tokenId on token lists
+ * @property {string} amount - eth format
  */
 
 /**
@@ -121,7 +121,7 @@
 
 /**
  * deposit data
- * @typedef {Object} deposit
+ * @typedef {Object} deposits
  * @property {string} blockchainKey
  * @property {string} tokenId
  * @property {string} tokenAddress
@@ -143,9 +143,9 @@
 /**
  * withdrawal creation request
  * @typedef {Object} withdrawalRequest
- * @property {string} blockchainKey
- * @property {string} tokenId
- * @property {string} userAddress
+ * @property {string} [blockchainKey]
+ * @property {string} tokenId - get token id from token lists data get on token list
+ * @property {string} userAddress - user to withdraw amount destination
  * @property {string} requestAmount
  */
 
@@ -186,7 +186,7 @@
 /**
  * market request by side
  * @typedef {Object} marketRequest
- * @property {string} blockchainKey
+ * @property {string} [blockchainKey]
  * @property {string} baseTokenId
  * @property {string} quoteTokenId
  * @property {'buy' | 'sell'} side
@@ -281,14 +281,14 @@
 
 /**
  * @typedef {Object} tokenOrder
- * @property {string} blockchainKey
+ * @property {string} [blockchainKey] - data from blockchain data
  * @property {string} baseTokenId
  * @property {string} quoteTokenId
  * @property {'buy' | 'sell'} orderType
- * @property {string} amount
- * @property {string} price
- * @property {string} slippage
- * @property {number} deadline
+ * @property {string} amount - get it from data by input itself or from estimate
+ * @property {string} price - get it from data by input itself or from estimate
+ * @property {string} slippage - max slippage input untill 50%
+ * @property {number} deadline - deadline time format is in second data and must be greater then today
  */
 
 /**
@@ -362,7 +362,8 @@
 /**
  * query or account balance info
  * @typedef {Object} tokenBalanceQuery
- * @property {string} userAddress
+ * @property {string} blockchianKey
+ * @property {string | PublicKey} userAddress
  * @property {Number} limit
  * @property {Number} page
  */

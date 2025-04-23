@@ -35,10 +35,10 @@ export const baseRequest = (baseUrl, secure = true) => {
 }
 
 /**
- * @param {NetworkInfo[]} data
+ * @param {import("./service/api/constant").NetworkInfo[]} data
  * @param {String} network
  * @param {Number} [chainId]
- * @returns {NetworkInfo}
+ * @returns {import("./service/api/constant").NetworkInfo}
  */
 export const filterBlockchainNetwork = (data, network, chainId) => {
     let filtered;

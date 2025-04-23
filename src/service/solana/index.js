@@ -1,6 +1,6 @@
 // @ts-check
 
-import { clusterApiUrl, Connection, Keypair, PublicKey, SystemProgram, Transaction } from "@solana/web3.js";
+import { clusterApiUrl, Connection, Keypair, LAMPORTS_PER_SOL, PublicKey, SystemProgram, Transaction } from "@solana/web3.js";
 import { Header, Payload, SIWS } from "@web3auth/sign-in-with-solana";
 import nacl from "tweetnacl";
 import { DEFAULT_TOKEN_SUPPLY, MINT_SIZE } from "../../contsant";
@@ -300,5 +300,151 @@ export default class SolanaWallet {
         await this.SolanaConfig.provider.confirmTransaction(signature, 'confirmed');
 
         return tokenAddress;
+    }
+
+    /**
+     * deposit function
+     * @param {String} depositAddress
+     * @param {String} depositAmount
+     * @param {String} [tokenAddress]
+     * @param {Number} [tokenDecimal]
+     * @returns {Promise<string>}
+     */
+    deposit = async (depositAddress, depositAmount, tokenAddress, tokenDecimal = 6) => {
+        const toWallet = new PublicKey(depositAddress);
+        const exactDepositAmount = Math.floor(parseFloat(depositAmount) * LAMPORTS_PER_SOL);
+        const tx = new Transaction();
+
+        try {
+            tx.add(
+                SystemProgram.transfer({
+                    fromPubkey: this.SolanaConfig.address,
+                    toPubkey: toWallet,
+                    lamports: exactDepositAmount
+                })
+            )
+    
+            const { blockhash, lastValidBlockHeight } = await this.SolanaConfig.provider.getLatestBlockhash();
+            tx.recentBlockhash = blockhash;
+            tx.feePayer = this.SolanaConfig.address;
+    
+            // Send
+            const signature = await this.SolanaConfig.provider.sendRawTransaction(tx.serialize());
+            const confirmation = await this.SolanaConfig.provider.confirmTransaction(
+                { signature, blockhash, lastValidBlockHeight },
+                'confirmed',
+            );
+    
+            if (confirmation.value.err) {
+                const err = confirmation.value.err;
+                const msg = `Deposit failed. Please try again.`;
+    
+                throw new Error(err ? JSON.stringify(err) : msg);
+            }
+    
+            return signature;
+        } catch (/** @type {any}*/error) {
+            throw new Error(error);
+        }
+    }
+
+    /**
+     * deposit function
+     * @param {String} depositAddress
+     * @param {String} depositAmount
+     * @param {String} [tokenAddress]
+     * @param {Number} [tokenDecimal]
+     * @returns {Promise<String>}
+     */
+    depositToken = async(depositAddress, depositAmount, tokenAddress, tokenDecimal = 6) => {
+        if (!tokenAddress) throw new Error(`token address is required`);
+
+        const toWallet = new PublicKey(depositAddress);
+        const tx = new Transaction();
+
+        const mint = new PublicKey(tokenAddress);
+        const fromTokenAccount = await getAssociatedTokenAddress(mint, this.SolanaConfig.address);
+        const toTokenAccount = await getAssociatedTokenAddress(mint, toWallet);
+
+        try {
+            // create ATA sender if it doesn't exist
+            tx.add(
+                createAssociatedTokenAccountIdempotentInstruction(
+                this.SolanaConfig.address,
+                fromTokenAccount,
+                this.SolanaConfig.address,
+                mint,
+                TOKEN_PROGRAM_ID,
+                ASSOCIATED_TOKEN_PROGRAM_ID,
+                ),
+            );
+
+            // create ATA receiver if it doesn't exist
+            tx.add(
+                createAssociatedTokenAccountIdempotentInstruction(
+                this.SolanaConfig.address,
+                toTokenAccount,
+                toWallet,
+                mint,
+                TOKEN_PROGRAM_ID,
+                ASSOCIATED_TOKEN_PROGRAM_ID,
+                ),
+            );
+
+            // create transfer
+            const transferIx = createTransferCheckedInstruction(
+                fromTokenAccount,
+                mint,
+                toTokenAccount,
+                this.SolanaConfig.address,
+                Number(depositAmount),
+                tokenDecimal,
+            );
+            tx.add(transferIx);
+
+            const { blockhash, lastValidBlockHeight } = await this.SolanaConfig.provider.getLatestBlockhash();
+            tx.recentBlockhash = blockhash;
+            tx.feePayer = this.SolanaConfig.address;
+
+            // Send
+            const signature = await this.SolanaConfig.provider.sendRawTransaction(tx.serialize());
+            const confirmation = await this.SolanaConfig.provider.confirmTransaction(
+                { signature, blockhash, lastValidBlockHeight },
+                'confirmed',
+            );
+
+            if (confirmation.value.err) {
+                const err = confirmation.value.err;
+                const msg = `Deposit failed. Please try again.`;
+
+                throw new Error(err ? JSON.stringify(err) : msg);
+            }
+
+            return signature;
+        } catch (/** @type {any}*/error) {
+            throw new Error(error);
+        }
+    }
+
+    /**
+     * approve amount to token address with executor is deposit address
+     * @param {String} depositAmount
+     * @param {String} depositAddress
+     * @param {String} tokenAddress
+     * @param {Number} tokenDecimal
+     * @returns {Promise<string>}
+     */
+    approve = async(depositAmount, depositAddress, tokenAddress, tokenDecimal) => {
+        return '';
+    }
+
+    /**
+     * allowance erc20 from user
+     * @param {String} depositAddress
+     * @param {String} tokenAddress
+     * @returns {Promise<number>}
+     */
+    allowance = async(depositAddress, tokenAddress) => {
+        return 0;
     }
 }
