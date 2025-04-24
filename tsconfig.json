@@ -5,7 +5,7 @@
     "moduleResolution": "node",
     "declaration": true,
     "declarationDir": "./dist/types",
-    "emitDeclarationOnly": false,
+    "emitDeclarationOnly": true,
     "allowJs": true,
     "checkJs": true,
     "outDir": "./dist",
@@ -14,6 +14,6 @@
     "esModuleInterop": true,
     "skipLibCheck": true
   },
-  "include": ["src"],
+  "include": ["src", "src/test",],
   "exclude": ["node_modules", "dist"]
 }
