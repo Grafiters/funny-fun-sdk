@@ -31,7 +31,7 @@ describe(`Funny Fun SDK Integration test`, () => {
         */
         const options = {
             serverUrl: `https://api.nusabyte.com`,
-            privateKey: '925d5229f175bea513339266a91708e5b4b6c145ba6e2d85f31e39fd6bbd3c34',
+            privateKey: 'change with your secret key',
             rpcUrl: 'https://data-seed-prebsc-1-s1.bnbchain.org:8545',
             websocketUrl: 'wss://api.nusabyte.com/api/v1/realtime',
             chainId: 97,
