@@ -1,9 +1,11 @@
 import axios from "axios";
-import { DEFAULT_MESSAGE, DEFAULT_NETWORK_WALLET } from "./contsant";
+import { DEFAULT_BASE_ORIGIN, DEFAULT_MESSAGE, DEFAULT_NETWORK_WALLET } from "./contsant";
 import Platform from "./service/api";
 import EVMWallet from "./service/evm";
 import SolanaWallet from "./service/solana";
 import { filterBlockchainNetwork } from "./utils";
+import WebSocket from 'ws';
+import { ethers } from "ethers";
 
 /**
  * @class FunnyFunSdk
@@ -12,38 +14,45 @@ import { filterBlockchainNetwork } from "./utils";
 /**
  * @typedef {import("./lib/wallet.d.ts").WalletImplemented & import("./lib/api.d.ts").ApiImpelemanted} services
  */
+
 export default class FunnyFunSdk {
     /**
      * @arg {Object} options
      * @arg {String} options.serverUrl - an server url from platform
      * @arg {String} options.privateKey - an secret key from wallet
+     * @arg {String} options.websocketUrl - an websocket realtime server user
      * @arg {String} [options.rpcUrl] - an rpc url from blockchain network
      * @arg {Number} [options.chainId] - chain id from wallet there is from wallet only on evm wallet
-     * @arg {import("@solana/web3.js").Cluster} [options.solanaNetwork]
+     * @arg {import("./service/solana").Cluster} [options.solanaNetwork]
      * @arg {keyof typeof DEFAULT_NETWORK_WALLET} options.network
      */
     constructor (options) {
         let axiosInstance = axios;
 
         /**@type {import("./lib/api.d.ts").ApiImpelemanted} */
-        const apiConfig = !options.serverUrl ? new Platform() : new Platform({fetch: axiosInstance});
-
+        const apiConfig = !options.serverUrl ? new Platform({serverUrl: options.serverUrl}) : new Platform({fetch: axiosInstance, serverUrl: options.serverUrl});
+        
         const config = {
             chainId: options.chainId,
             privateKey: options.privateKey,
             cluster: options.solanaNetwork,
+            rpcUrl: options.rpcUrl,
             serverUrl: options.serverUrl
         }
+
         /** @type {import("./lib/wallet.d.ts").WalletImplemented} */
         const wallet = options.network === DEFAULT_NETWORK_WALLET.evm ? new EVMWallet(config) : new SolanaWallet(config);
-        
+
+        const socket = `${options.websocketUrl}?userSignature=${wallet.config().address}`;
+
         this.config = {
             api: apiConfig,
             wallet: wallet,
             walletConfig: wallet.config(),
             options: options,
             network: options.network,
-            message: DEFAULT_MESSAGE[options.network]
+            message: DEFAULT_MESSAGE[options.network],
+            socket: socket
         }
     }
     
@@ -52,8 +61,12 @@ export default class FunnyFunSdk {
      * @returns {Promise<import("./service/api/constant").tokenLists[]>}
      */
     tokenLists = async () => {
+        if (!this.blockchain) {
+            await this.getBlockchainData();
+            if (!this.blockchain) throw new Error("Blockchain data failed to load.");
+        }
         try {
-            const req = await this.config.api.tokens(this.config.network);
+            const req = await this.config.api.tokens(this.blockchain?.key);
 
             /**@type {import("./service/api/constant").tokenLists[]} */
             return req;
@@ -66,24 +79,24 @@ export default class FunnyFunSdk {
      * get signature message from wallet
      */
     signature = async () => {
-        try {
-            await this.config.api.checkStatusServer(this.config.options.serverUrl);
-            
-            const nonce = await this.config.api.nonce(this.config.walletConfig.address.toString(), this.config.options.network);
-            const signature = await this.config.wallet.signMessage({
-                message: DEFAULT_MESSAGE[this.config.network],
-                nonce: nonce,
-                domain: this.config.walletConfig.domain,
-                url: this.config.walletConfig.origin
-            })
-
-            this.config.api.setSignatureAuth(signature);
-
-            await this.config.api.authCheck();
-            return signature;
-        } catch ( /**@type {any} */ error) {
-            throw new Error(error)
+        if (!this.blockchain) {
+            await this.getBlockchainData();
+            if (!this.blockchain) throw new Error("Blockchain data failed to load.");
         }
+        await this.config.api.checkStatusServer(this.config.options.serverUrl);
+        
+        const nonce = await this.config.api.nonce(this.config.walletConfig.address.toString(), this.config.options.network);
+        const signature = await this.config.wallet.signMessage({
+            message: DEFAULT_MESSAGE[this.config.network],
+            nonce: nonce,
+            domain: this.config.walletConfig.domain,
+            url: this.config.walletConfig.origin == DEFAULT_BASE_ORIGIN ? this.config.walletConfig.origin : DEFAULT_BASE_ORIGIN
+        });
+        
+        this.config.api.setSignatureAuth(signature);
+
+        await this.config.api.authCheck(/** @type {String} */ this.blockchain?.key);
+        return signature;
     }
 
     /**
@@ -142,9 +155,15 @@ export default class FunnyFunSdk {
     /**
      * update token data to platform
      * @param {import("./service/api/constant").tokens} params
+     * @param {string} tokenId
      * @returns {Promise<any>}
      */
-    createToken = async(params) => {
+    createToken = async(params, tokenId) => {
+        params.tokenAddress = tokenId;
+        console.log(params);
+        console.log(tokenId);
+        
+        
         try {
             const req = await this.config.api.uploadTokenData(params);
             return req;
@@ -154,46 +173,123 @@ export default class FunnyFunSdk {
     }
 
     /**
+     * update token data to platform
+     * @param {String} factoryAddress
+     * @param {import("./service/api/constant").tokens} [params]
+     * @returns {Promise<any>}
+     */
+
+    listener = async (factoryAddress, params) => {      this.blockchain?.tokenFactoryContractAddress ;
+        return new Promise(async (resolve, reject) => {  
+            if (!factoryAddress) {
+                return reject(new Error('Factory address is not configured'));
+            }
+            
+            const onMessage = async (/** @type {any} */ event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.result.event === 'TokenCreatedEvent' && params) {
+                        cleanup();
+
+                        const result = await this.createToken(params, data.result?.data.tokenId);
+                        resolve(result);
+                    }
+                    
+                    if (data.result.event === 'UserDepositedEvent') {
+                        cleanup();
+
+                        resolve(data)
+                    }
+                } catch (err) {
+                    console.error('❌ Invalid WS message:', err);
+                }
+            };
+        
+            const onError = ( /** @type {any} */ err) => {
+                cleanup();
+                reject(new Error('WebSocket error: ' + err.message));
+            };
+
+            const socket = new WebSocket(this.config.socket);
+
+            socket.onopen = async () => {
+                socket.send(JSON.stringify({
+                    jsonrpc: '2.0',
+                    id: 1,
+                    method: 'subscribe',
+                    params: [
+                        ['TokenCreatedEvent', 'UserDepositedEvent'],
+                        [],
+                        [factoryAddress],
+                    ]
+                }));
+
+                console.log('📡 Subscription request sent...');
+            };
+
+            const cleanup = () => {
+                socket.removeEventListener('message', onMessage);
+                socket.removeEventListener('error', onError);
+                if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) {
+                    socket.close();
+                }
+            };
+
+            socket.addEventListener('message', onMessage);
+            socket.addEventListener('error', onError);
+        });
+    };
+
+    /**
      * deploy and create token with same action
      * @param {import("./service/api/constant").tokens} params token data
      * @returns {Promise<any>}
      */
-    deployAndRequestCreateToken = async(params) => {
+    deployAndRequestCreateToken = async(params) => {        
         if (!this.blockchain) {
             await this.getBlockchainData();
         }
-        let metadataUrl = '';
-        try {
-            if (this.config.network !== DEFAULT_NETWORK_WALLET.solana) {
-                /**@type {import("./service/api/constant").tokenMetaData} */
-                const metadata = {
-                    blockchainKey: this.blockchain?.key ?? '',
-                    tokenName: params.tokenName,
-                    tokenSymbol: params.tokenSymbol,
-                    tokenImage: params.tokenImage,
-                    tokenDescription: params.tokenDescription,
-                    tokenDiscord: params.tokenDiscord,
-                    tokenWebsite: params.tokenWebsite,
-                    tokenTwitter: params.tokenTwitter,
-                    tokenTelegram: params.tokenTelegram
-                }
-    
-                const url = await this.uplaodMetaData(metadata);
-    
-                metadataUrl = url;
-            }
-    
-            const deployToken = await this.deployToken(params.tokenName, params.tokenSymbol, metadataUrl);
-            if (this.config.network !== DEFAULT_NETWORK_WALLET.solana) {
-                params.txHash = deployToken;
-            }
-    
-            const createToken = await this.createToken(params);
 
-            return createToken;
-        } catch ( /**@type {any} */ error) {
-            throw new Error(error);
+        const accountBalance = await this.getAccountBalance();
+        const filteredBalance = accountBalance.filter((item) => item.tokenId === params.quoteTokenId);
+        const platformBalance = filteredBalance[0];
+        const exactInitialBuy = ethers.parseUnits(params.initialBuyPrice, platformBalance.tokenDecimals);
+
+        if (exactInitialBuy > 0) {
+            const exactPlarformBalance = ethers.parseUnits(params.initialBuyPrice, platformBalance.tokenDecimals);
+            if (exactPlarformBalance < 0) throw new Error(`Insufficient balance user on platform, please deposit first`);
         }
+        let metadataUrl = '';
+        if (this.config.network !== DEFAULT_NETWORK_WALLET.solana) {
+            /**@type {import("./service/api/constant").tokenMetaData} */
+            const metadata = {
+                blockchainKey: this.blockchain?.key ?? '',
+                tokenName: params.tokenName,
+                tokenSymbol: params.tokenSymbol,
+                tokenImage: params.tokenImage,
+                tokenDescription: params.tokenDescription,
+                tokenDiscord: params.tokenDiscord,
+                tokenWebsite: params.tokenWebsite,
+                tokenTwitter: params.tokenTwitter,
+                tokenTelegram: params.tokenTelegram
+            }
+
+            const url = await this.uplaodMetaData(metadata);
+
+            metadataUrl = url;
+        }
+
+        if (!this.blockchain?.tokenFactoryContractAddress) throw new Error(`factory address undefined`);
+        const deployToken = await this.deployToken(params.tokenName, params.tokenSymbol, metadataUrl);
+
+        if (this.config.network !== DEFAULT_NETWORK_WALLET.solana) {
+            params.txHash = deployToken;
+        }else{
+            params.tokenAddress = deployToken;
+        }
+
+
+        return await this.listener(this.blockchain?.tokenFactoryContractAddress, params);
     }
 
     /**
@@ -217,7 +313,7 @@ export default class FunnyFunSdk {
     /**
      * make a deposit token spesified blockchain network and wallet
      * @param {import("./service/api/constant").depositsCreation} body
-     * @returns {Promise<string>}
+     * @returns {Promise<{message: string, txHash: string, time: number}>}
      */
     createDepositToken = async(body) => {
         if (!this.blockchain) {
@@ -231,28 +327,47 @@ export default class FunnyFunSdk {
             throw new Error(`invalid token address`);
         }
 
-        const tokens = await this.tokenLists();
+        const accountBalance = await this.getAccountBalance();
+        const filteredBalance = accountBalance.filter((item) => item.blockchainKey === body.blockchainKey && item.tokenId === body.tokenId);
 
-        const filteredToken = tokens.filter(item => item.tokenId === body.tokenId);
-        if(!filteredToken) {
+        const platformBalance = filteredBalance[0];
+        
+        if(!platformBalance) {
             throw new Error(`invalid token address`);
         }
-
-        const token = filteredToken[0];
+        
         const amount = Math.floor(parseFloat(body.amount))
         if (amount <= 0) {
             throw new Error(`amount deposit cannot lower or equal then zero`);
         }
+        if (!this.blockchain) {
+            throw new Error(`data blockchain is invalid`);
+        }
         try {
-            const tokenType = token.tokenId.split(':')
+            const tokenType = platformBalance.tokenId.split(':')
             if(tokenType[0] === 'erc20' || tokenType[0] === 'token') {
-                const depoReq = await this.config.wallet.depositToken(
-                    this.blockchain.depositAddress,
+                const token = body.tokenId.split(':')[1];
+                await this.config.wallet.depositToken(
+                    this.blockchain?.depositAddress,
                     body.amount,
-                    body.tokenId
+                    token
                 );
                 
-                return depoReq
+                /** @type {string} */
+                let address = '';
+                if (typeof this.config.walletConfig.address !== 'string') {
+                    /** @type {string} */
+                    address = this.config.walletConfig.address.toString();
+                }else{
+                    address = this.config.walletConfig.address;
+                }
+                const listen = await this.listener(address);
+                
+                return {
+                    message: `user deposited success`,
+                    time: listen.result.data.depositTime,
+                    txHash: listen.result.data.depositTxHash
+                }
             }else{
                 throw new Error('cannot doing deposit token network type is invalid')
             }
@@ -264,27 +379,55 @@ export default class FunnyFunSdk {
     /**
      * make a deposit spesified blockchain network and wallet
      * @param {import("./service/api/constant").depositsCreation} body
-     * @returns {Promise<string>}
+     * @returns {Promise<{message: string, txHash: string, time: number}>}
      */
     createDeposit = async(body) => {
         if (!this.blockchain) {
             await this.getBlockchainData();
         }
-        if (body.blockchainKey !== this.blockchain?.key) {
+        if (body.blockchainKey && body.blockchainKey !== this.blockchain?.key) {
             throw new Error(`invalid blockchain key`);
         }
 
-        const amount = Math.floor(parseFloat(body.amount))
+        if (!this.blockchain) {
+            throw new Error(`data blockchain is invalid`);
+        }
+        if (!body.blockchainKey) {
+            body.blockchainKey = this.blockchain?.key;
+        }
+
+        const accountBalance = await this.getAccountBalance();
+        const filteredBalance = accountBalance.filter((item) => item.blockchainKey === body.blockchainKey && item.tokenId === body.tokenId);
+        
+        const platformBalance = filteredBalance[0];
+
+        const amount = ethers.parseUnits(body.amount, platformBalance.tokenDecimals)
+        
         if (amount <= 0) {
             throw new Error(`amount deposit cannot lower or equal then zero`);
         }
+
         try {
-            const depoReq = await this.config.wallet.depositToken(
-                this.blockchain.depositAddress,
+            await this.config.wallet.deposit(
+                this.blockchain?.depositAddress,
                 body.amount
             );
+
+            /** @type {string} */
+            let address = '';
+            if (typeof this.config.walletConfig.address !== 'string') {
+                /** @type {string} */
+                address = this.config.walletConfig.address.toString();
+            }else{
+                address = this.config.walletConfig.address;
+            }
+            const listen = await this.listener(address);
             
-            return depoReq
+            return {
+                message: `user deposited success`,
+                time: listen.result.depositTime,
+                txHash: listen.result.depositTxHash
+            }
         } catch (/** @type {any} */error) {
             throw new Error(error);
         }
@@ -308,7 +451,7 @@ export default class FunnyFunSdk {
     /**
      * create withdrawal request creation
      * @param {import("./service/api/constant").withdrawalRequest} body
-     * @returns {Promise<{message: string, withdrawalUid: string}>}
+     * @returns {Promise<{message: string, withdrawalUid: {uid: string}}>}
      */
     createWithdraw = async(body) => {
         if(!this.blockchain) throw new Error(`haven't setup blockchain data`);
@@ -321,16 +464,14 @@ export default class FunnyFunSdk {
             throw new Error(`invalid token address`);
         }
 
-        const token = filteredToken[0];
-        
-        const amount = Math.floor(parseFloat(body.requestAmount))
+        const amount = parseFloat(body.requestAmount)
         if (amount <= 0) {
             throw new Error(`amount deposit cannot lower or equal then zero`);
         }
         try {
             const withdrawReq = await this.config.api.withdrawalRequest(body);
 
-            /**@type {{message: string, withdrawalUid: string}} */
+            /**@type {{message: string, withdrawalUid: {uid: string}}}} */
             return withdrawReq
         } catch (/** @type {any} */error) {
             throw new Error(error);
@@ -339,21 +480,23 @@ export default class FunnyFunSdk {
 
     /**
      * get account detail from platform
-     * @param {number} page
-     * @param {number} limit
-     * @returns {Promise<import("./service/api/constant").tokenBalanceInfo>}
+     * @param {number} [page]
+     * @param {number} [limit]
+     * @returns {Promise<import("./service/api/constant").tokenBalanceInfo[]>}
      */
     getAccountBalance = async (page, limit) => {
         if (!this.blockchain) await this.getBlockchainData();
+
         /**@type {import("./service/api/constant").tokenBalanceQuery} */
         if (!this.blockchain?.key) throw new Error();
+
         const query = {
-            blockchianKey: this.blockchain?.key,
+            blockchainKey: this.blockchain?.key,
             userAddress: this.config.walletConfig.address,
             limit: limit,
             page: page
         }
-
+        
         try {
             const account = await this.config.api.account(query);
 
@@ -439,10 +582,10 @@ export default class FunnyFunSdk {
             body.blockchainKey = this.blockchain.key;
         }
 
-        if (!body.amount) throw new Error(`must be choose one of type estimate`);
-        if (!body.price) throw new Error(`must be choose one of type estimate`);
-        
-        const amount = body.amount ? Math.floor(parseFloat(body.amount)) : Math.floor(parseFloat(body.price));
+        if (!body.amount && !body.price) throw new Error(`must be choose one of type estimate`);
+
+        // @ts-ignore
+        const amount = body.amount ? parseFloat(body.amount) : parseFloat(body.price);
         if (amount <= 0) throw new Error(`order amount must be greater then zero`);
 
         try {

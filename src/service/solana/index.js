@@ -25,6 +25,10 @@ import { createCreateMetadataAccountV3Instruction } from "./metaplex";
  * @classdesc the solana walet configration and related with server
  */
 
+/**
+ * @typedef {'devnet' | 'testnet' | 'mainnet-beta'} Cluster
+ */
+
     /** @type {import("../../lib/wallet.d.ts").WalletImplemented} */
 export default class SolanaWallet {
     /**
@@ -32,11 +36,13 @@ export default class SolanaWallet {
     * @arg {String} [options.serverUrl] - an server url for making request
     * @arg {String} [options.address] - an evm user address for authentiation
     * @arg {String} [options.privateKey] - an private key to interaction with web3 or smart contract - e.g ()
-    * @arg {import("@solana/web3.js").Cluster} [options.cluster] - an rpc url from blockchain
+    * @arg {Cluster} [options.cluster] - an rpc url from blockchain
     * @arg {Number} [options.chainId] - chain id from connected network
     */
     constructor(options = {}) {
         // Validasi untuk memastikan serverUrl tidak undefined
+        console.log(options);
+        
         if (!options.serverUrl) {
             throw new Error('serverUrl is required.');
         }
@@ -124,7 +130,9 @@ export default class SolanaWallet {
         const signature = nacl.sign.detached(encode, this.privateKey);
         const signToBase64 = Buffer.from(signature).toString('base64');
 
-        return signToBase64
+        const signToAuth = `solana.${(btoa(JSON.stringify(payload)))}.${signToBase64}`;
+
+        return signToAuth;
     }
 
     /**

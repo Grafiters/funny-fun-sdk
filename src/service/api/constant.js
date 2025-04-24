@@ -105,9 +105,9 @@ import { PublicKey } from "@solana/web3.js";
 /**
  * deposit creation
  * @typedef {Object} depositsCreation
- * @property {string} blockchainKey
- * @property {string} [tokenId] - get from data tokenId on token lists
  * @property {string} amount - eth format
+ * @property {string} blockchainKey
+ * @property {string} tokenId - get from data tokenId on token lists
  */
 
 /**
@@ -190,7 +190,7 @@ import { PublicKey } from "@solana/web3.js";
  * @property {string} baseTokenId
  * @property {string} quoteTokenId
  * @property {'buy' | 'sell'} side
- * @property {'price' | 'amont'} marketType
+ * @property {'price' | 'amount'} marketType
  * @property {string} [amount]
  * @property {string} [price]
  */
@@ -362,10 +362,10 @@ import { PublicKey } from "@solana/web3.js";
 /**
  * query or account balance info
  * @typedef {Object} tokenBalanceQuery
- * @property {string} blockchianKey
+ * @property {string} blockchainKey
  * @property {string | PublicKey} userAddress
- * @property {Number} limit
- * @property {Number} page
+ * @property {Number} [limit]
+ * @property {Number} [page]
  */
 
 /**

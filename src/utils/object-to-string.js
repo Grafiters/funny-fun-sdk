@@ -5,11 +5,10 @@
  * @returns {String}
 */
 export const objectToQuery = (params) => {
-    const stringifiedQuery = Object.fromEntries(
-        Object.entries(params)
-            .filter(([_, value]) => value !== undefined) // Memfilter nilai yang undefined
-            .map(([key, value]) => [key, String(value)]) // Mengubah nilai menjadi string
-    );
-
-    return stringifiedQuery.toString();
+    const stringifiedQuery = Object.entries(params)
+        .filter(([_, value]) => value !== undefined) // 🧹 remove undefined
+        .map(([key, value]) => `${key}=${value}`)
+        .join('&');
+    
+    return stringifiedQuery;
 }

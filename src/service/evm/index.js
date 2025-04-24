@@ -3,6 +3,11 @@
 import { ethers } from "ethers";
 import { SiweMessage } from "siwe";
 import { abi, erc20abi, paymentManagerAbi } from "./abi";
+import { createPublicClient, createWalletClient, http, isHex, parseSignature } from "viem";
+import { createSiweMessage } from "viem/siwe";
+import { blockchains } from "./blockchains";
+import { privateKeyToAccount } from "viem/accounts";
+import { convertToHexViem } from "../../utils/convert-string-to-hex-address";
 
 /**
  * @class EVMWallet
@@ -48,9 +53,22 @@ export default class EVMWallet {
         this.domain = domainParse.hostname;
 
         const provider = new ethers.JsonRpcProvider(this.rpcUrl);
-        const wallet = new ethers.Wallet(this.privateKey, provider)
+        const wallet = new ethers.Wallet(this.privateKey, provider);
 
-        /** @type {string|undefined} */
+        const privateKeyBuffer = convertToHexViem(`0x${options.privateKey}`);
+
+        // @ts-ignore
+        const account = privateKeyToAccount(privateKeyBuffer);
+
+        const providerClient = createWalletClient({
+            chain: blockchains[options.chainId].chain,
+            transport: http(),
+            account: account
+        });
+
+        this.ethersProvider = provider;
+
+        // /** @type {string|undefined} */
         this.address = options.address || wallet.address;
 
         this.abiFactory = abi;
@@ -65,15 +83,16 @@ export default class EVMWallet {
             domain: this.domain,
             origin: domainParse.origin,
             rpcUrl: this.rpcUrl,
-            provider: provider,
+            provider: providerClient,
             wallet: wallet
         }
     }
 
     /**
-     * @returns {{abiFactory: string, address: string, domain: string, origin: string, rpcUrl: string, provider: ethers.JsonRpcProvider, wallet: ethers.Wallet}}
+     * @returns {{abiFactory: string, address: string, domain: string, origin: string, rpcUrl: string, provider: import("viem").WalletClientConfig, wallet: ethers.Wallet}}
      */
     config = () => {
+        // @ts-ignore
         return this.EvmConfig;
     }
 
@@ -86,39 +105,55 @@ export default class EVMWallet {
      * @returns {Promise<String>} - return signature of messages
      */
     signMessage = async (params) => {
-        const message = new SiweMessage({
-            domain: params.domain,
-            address: this.address,
-            statement: params.message,
-            uri: params.url,
-            version: '1',
-            chainId: this.chainId,
-            nonce: params.nonce?.toString(),
-            issuedAt: new Date().toISOString()
-        });
+        if (!isHex(this.address)) throw new Error(`Address invalid hex format`);
+        if (!this.chainId) throw new Error(``);
 
-
-        const messageToSign = message.prepareMessage();
-        const signature = await this.EvmConfig.wallet.signMessage(messageToSign);
-        return signature;
+        try {
+            const siweMessage = createSiweMessage({
+                domain: params.domain,
+                address: this.address,
+                statement: params.message,
+                uri: params.url,
+                version: '1',
+                chainId: this.chainId,
+                nonce: params.nonce?.toString(),
+            });
+            
+            const siweSignature = await this.EvmConfig.wallet.signMessage(siweMessage);
+            
+            if(!isHex(siweSignature)) throw new Error(`cannot create signature`);
+            const signToAuth = `evm.${btoa(siweMessage)}.${siweSignature}`
+    
+            return signToAuth;
+        } catch (/** @type {any} */ error) {
+            throw new Error(error);
+        }
     }
 
     /**
-     * @param {String} factoryAddress - an address smart contract
      * @param {String} tokenName - an token tokenName required
      * @param {String} tokenSymbol - an token tokenSymbol required
+     * @param {String} factoryAddress - an address smart contract
      * @returns {Promise<String|any>} - returning hash transaction of create token
      */
-    createToken = async (factoryAddress, tokenName, tokenSymbol) => {
-        const contract = new ethers.Contract(factoryAddress, this.EvmConfig.abiFactory, this.EvmConfig.provider);
+    createToken = async (tokenName, tokenSymbol, factoryAddress) => {
+        if(!isHex(factoryAddress)) throw new Error(`Invalid factory address format`);
+        const contract = new ethers.Contract(factoryAddress, this.EvmConfig.abiFactory, this.EvmConfig.wallet);
+        
         try {
             const fee = await contract.getTokenCreationFee();
-            const tx = await contract.createToken(tokenName, tokenSymbol, {
-                value: fee
+            const zero = BigInt(0);
+            
+            const txHash = await this.EvmConfig.provider.writeContract({
+                abi: this.EvmConfig.abiFactory,
+                address: factoryAddress,
+                functionName: 'createToken',
+                value: fee,
+                chain: this.EvmConfig.provider.chain,
+                args: [tokenName, tokenSymbol, zero, zero]
             });
-
-            await tx.wait();
-            return tx.transactionHash;
+            
+            return txHash;
         } catch (/** @type {any} */ error) {
             throw new Error(error);
         }
@@ -133,15 +168,15 @@ export default class EVMWallet {
      * @returns {Promise<string>}
      */
     deposit = async(depositAddress, depositAmount, tokenAddress, tokenDecimal = 18) => {
-        const contract = new ethers.Contract(depositAddress, this.EvmConfig.abiPayment, this.EvmConfig.provider);
+        const contract = new ethers.Contract(depositAddress, this.EvmConfig.abiPayment, this.EvmConfig.wallet);
 
         try {
             const tx = await contract.deposit({
-                value: ethers.parseEther(depositAmount)
+                value: ethers.parseUnits(depositAmount, 18)
             })
 
             await tx.wait();
-            return tx.transactionHash;
+            return tx.hash;
         } catch (/** @type {any}*/error) {
             throw new Error(error);
         }
@@ -153,15 +188,18 @@ export default class EVMWallet {
      * @param {String} depositAmount
      * @param {String} [tokenAddress]
      * @param {Number} [tokenDecimal]
+     * @returns {Promise<string>}
      */
     depositToken = async(depositAddress, depositAmount, tokenAddress, tokenDecimal = 18) => {
         if (!tokenAddress) throw new Error(`token address is required`);
-        const contract = new ethers.Contract(depositAddress, this.EvmConfig.abiPayment, this.EvmConfig.provider);
-        const allowance = await this.allowance(depositAddress, tokenAddress);
+        const contract = new ethers.Contract(depositAddress, this.EvmConfig.abiPayment, this.EvmConfig.wallet);
+        
+        // const allowance = await this.allowance(depositAddress, tokenAddress);
+        await this.approve(depositAmount, depositAddress, tokenAddress, tokenDecimal);
         const amount = ethers.parseUnits(depositAmount, tokenDecimal);
-        if (allowance < amount) {
-            await this.approve(depositAmount, depositAddress, tokenAddress, tokenDecimal);
-        }
+        // if (allowance < amount) {
+        //     await this.approve(depositAmount, depositAddress, tokenAddress, tokenDecimal);
+        // }
 
         try {
             const tx = await contract.depositToken(
@@ -169,8 +207,9 @@ export default class EVMWallet {
                 amount
             );
 
-            const receipt = await tx.wait();
-            return receipt.transactionHash;
+            await tx.wait();
+
+            return tx.hash;
         } catch (/** @type {any}*/error) {
             throw new Error(error);
         }
@@ -183,7 +222,8 @@ export default class EVMWallet {
      * @returns {Promise<number>}
      */
     allowance = async(depositAddress, tokenAddress) => {
-        const contract = new ethers.Contract(tokenAddress, this.EvmConfig.abierc20, this.EvmConfig.provider);
+        const contract = new ethers.Contract(tokenAddress, this.EvmConfig.abierc20, this.EvmConfig.wallet);
+        
         try {
             const allowance = await contract.allowance(depositAddress);
 
@@ -202,7 +242,7 @@ export default class EVMWallet {
      * @returns {Promise<string>}
      */
     approve = async(depositAmount, depositAddress, tokenAddress, tokenDecimal) => {
-        const contract = new ethers.Contract(tokenAddress, this.EvmConfig.abierc20, this.EvmConfig.provider);
+        const contract = new ethers.Contract(tokenAddress, this.EvmConfig.abierc20, this.EvmConfig.wallet);
         try {
             const tx = await contract.approve(depositAddress, ethers.parseUnits(depositAmount, tokenDecimal))
             await tx.wait();

@@ -12,9 +12,10 @@ import { DEFAULT_DOMAIN, DEFAULT_FEATURE, DEFAULT_NETWORK_WALLET, DEFAULT_VERSIO
  */
 export const baseApi = (subdomain = '', domain = DEFAULT_DOMAIN, feature = DEFAULT_FEATURE, version = DEFAULT_VERSION) => {
     if (!subdomain) {
-        return `https://${domain}${feature}${version}`;
+        return `${domain}${feature}${version}`;
     }
 
+    if(domain.startsWith('https://')) return `${domain}${feature}${version}`;
     return `https://${subdomain}.${domain}${feature}${version}`;
 }
 
@@ -24,8 +25,9 @@ export const baseApi = (subdomain = '', domain = DEFAULT_DOMAIN, feature = DEFAU
  * @returns {import("axios").AxiosInstance} - returns axios instence
  */
 export const baseRequest = (baseUrl, secure = true) => {
+
     const req = axios.create({
-        baseURL: baseUrl,
+        baseURL: baseUrl.replace(/\/+$/, ''),
         withCredentials: secure
     })
 

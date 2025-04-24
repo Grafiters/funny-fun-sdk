@@ -17,16 +17,19 @@ import { objectToQuery } from "../../utils/object-to-string";
 export default class Platform {
     /**
      * @arg {Object} options
+     * @arg {String} [options.serverUrl] - server url to fetch data from platform
      * @arg {import("axios").AxiosInstance} [options.fetch] - returns axios instence
      */
     constructor (options = {}) {
         /**@type {import("axios").AxiosInstance} */
         let axiosInstance = axios;
-        if (!options.fetch) {
-            const apiUrl = baseApi();
+        if (options.serverUrl) {
+            const apiUrl = baseApi('', options.serverUrl);
+            
             axiosInstance = baseRequest(apiUrl, true);
         }
-        this.fetch = options.fetch || axiosInstance;
+        
+        this.fetch = axiosInstance;        
     }
 
     /**
@@ -65,23 +68,26 @@ export default class Platform {
      * @param {String} signature - signature from wallet connection
      */
     setSignatureAuth = (signature) => {
-        this.fetch.defaults.headers["Authorization"] = signature;
+        this.fetch.defaults.headers["Authorization"] = `Bearer ${signature}`;
     }
 
     /**
      * userAccount data
      * @param {import("./constant").tokenBalanceQuery} query
-     * @returns {Promise<import("./constant").tokenBalanceInfo>}
+     * @returns {Promise<import("./constant").tokenBalanceInfo[]>}
      */
     account = async (query) => {
         const convertToQuery = objectToQuery(query);
+        
         try {
             const req = await this.fetch.get(`/accounts?${convertToQuery}`);
-
-            /** @type {import("./constant").tokenBalanceInfo} */
+            
+            /** @type {import("./constant").tokenBalanceInfo[]} */
             const data = req.data;
+            
             return data;
         } catch (/** @type {any} */ error) {
+            console.error('🔍 Axios error detail:', error?.response?.data);
             throw new Error(error);
         }
     }
@@ -147,12 +153,13 @@ export default class Platform {
 
     /**
      * get token data spesified by network
-     * @param {String} blockchainKey - blockchain key of network
+     * @param {String} [blockchainKey] - blockchain key of network
+     * @param {String} [availableAsQuote] - available quote 
      * @returns {Promise<import("./constant").tokenLists[]>}
      */
-    tokens = async (blockchainKey) => {
+    tokens = async (blockchainKey, availableAsQuote) => {
         try {
-            const req = await this.fetch.get(`/tokens?blockchainKey=${blockchainKey}`);
+            const req = await this.fetch.get(`/tokens?blockchainKey=${blockchainKey}&availableAsQuote=${availableAsQuote}`);
 
             /**@type {import("./constant").tokenLists[]} */
             const res = req.data
@@ -164,11 +171,12 @@ export default class Platform {
 
     /**
      * check auth from signature
+     * @param {String} blockchainKey
      * @returns {Promise<any>}
      */
-    authCheck = async () => {
+    authCheck = async (blockchainKey) => {        
         try {
-            const req = await this.fetch.get('/auth-check');
+            const req = await this.fetch.get(`/auth-check?blockchainKey=${blockchainKey}`);
             const res = req.data;
             return res;
         } catch (/** @type {any} */ error) {
@@ -205,7 +213,6 @@ export default class Platform {
             throw new Error(error);
         }
     }
-
 
     /**
      * @param {import("./constant").tokens} params - body params for token creation
@@ -253,7 +260,7 @@ export default class Platform {
     /**
      * post withdrawals request
      * @param {import("./constant").withdrawalRequest} params
-     * @returns {Promise<{message: string, withdrawalUid: string}>}
+     * @returns {Promise<{message: string, withdrawalUid: {uid: string} }>}
      */
     withdrawalRequest = async (params) => {
         try {
@@ -322,6 +329,7 @@ export default class Platform {
      */
     trade = async(query) => {
         const convertToQuery = objectToQuery(query);
+        
         try {
             const req = await this.fetch.get(`/trades?${convertToQuery}`);
 
@@ -357,6 +365,8 @@ export default class Platform {
      * @returns {Promise<import("./constant").amountData>}
      */
     estimatedAmountMarkets = async(params) => {
+        console.log(`market-${params.side}-${params.marketType}`);
+        
         try {
             const req = await this.fetch.post(`/market-${params.side}-${params.marketType}`, params);
             
