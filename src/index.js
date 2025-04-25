@@ -1,11 +1,12 @@
 import axios from "axios";
-import { DEFAULT_BASE_ORIGIN, DEFAULT_MESSAGE, DEFAULT_NETWORK_WALLET } from "./contsant";
+import { DEFAULT_BASE_ORIGIN, DEFAULT_MESSAGE, DEFAULT_NETWORK_WALLET, DEFAULT_TOKEN_SUPPLY } from "./contsant";
 import Platform from "./service/api";
 import EVMWallet from "./service/evm";
 import SolanaWallet from "./service/solana";
 import { filterBlockchainNetwork } from "./utils";
 import WebSocket from 'ws';
-import { ethers } from "ethers";
+import { ethers, parseUnits } from "ethers";
+import { getFutureEpochInMinutes } from "./utils/getFutureEpoach";
 
 /**
  * @class FunnyFunSdk
@@ -94,7 +95,7 @@ export default class FunnyFunSdk {
         });
         
         this.config.api.setSignatureAuth(signature);
-
+        
         await this.config.api.authCheck(/** @type {String} */ this.blockchain?.key);
         return signature;
     }
@@ -116,7 +117,7 @@ export default class FunnyFunSdk {
     /**
      * upload metadata token only for solana config
      * @param {import("./service/api/constant").tokenMetaData} params - parameter for token meta data but for solana only
-     * @returns {Promise<String>}
+     * @returns {Promise<{tokenMetadataUrl: string}>}
      */
     uplaodMetaData = async (params) => {
         await this.config.api.checkStatusServer(this.config.options.serverUrl);
@@ -129,10 +130,14 @@ export default class FunnyFunSdk {
      * deploy token with smart contract spesified by network blockchains
      * @param {String} tokenName
      * @param {String} tokenSymbol
+     * @param {boolean} isLocked
+     * @param {string} amountLocked
+     * @param {number} timeLocked
+     * @param {BigInt} initialbuyAmount
      * @param {String} [metadataUrl]
      * @returns {Promise<String>}
      */
-    deployToken = async (tokenName, tokenSymbol, metadataUrl = undefined) => {
+    deployToken = async (tokenName, tokenSymbol, isLocked, amountLocked, timeLocked, initialbuyAmount, metadataUrl = undefined) => {
         if (!this.blockchain) {
             await this.getBlockchainData();
         }
@@ -141,9 +146,13 @@ export default class FunnyFunSdk {
             const deploy = await this.config.wallet.createToken(
                 tokenName,
                 tokenSymbol,
+                isLocked,
+                amountLocked,
+                timeLocked,
+                initialbuyAmount,
                 this.blockchain?.tokenFactoryContractAddress,
-                this.blockchain?.tokenCreationFee,
-                metadataUrl
+                metadataUrl,
+                this.blockchain?.tokenCreationFee
             );
 
             return deploy;
@@ -155,14 +164,10 @@ export default class FunnyFunSdk {
     /**
      * update token data to platform
      * @param {import("./service/api/constant").tokens} params
-     * @param {string} tokenId
      * @returns {Promise<any>}
      */
-    createToken = async(params, tokenId) => {
-        params.tokenAddress = tokenId;
+    createToken = async(params) => {
         console.log(params);
-        console.log(tokenId);
-        
         
         try {
             const req = await this.config.api.uploadTokenData(params);
@@ -179,7 +184,7 @@ export default class FunnyFunSdk {
      * @returns {Promise<any>}
      */
 
-    listener = async (factoryAddress, params) => {      this.blockchain?.tokenFactoryContractAddress ;
+    listener = async (factoryAddress, params) => {
         return new Promise(async (resolve, reject) => {  
             if (!factoryAddress) {
                 return reject(new Error('Factory address is not configured'));
@@ -188,16 +193,18 @@ export default class FunnyFunSdk {
             const onMessage = async (/** @type {any} */ event) => {
                 try {
                     const data = JSON.parse(event.data);
+                    console.log(data);
+                    
                     if (data.result.event === 'TokenCreatedEvent' && params) {
                         cleanup();
-
-                        const result = await this.createToken(params, data.result?.data.tokenId);
-                        resolve(result);
+                        console.log(data);
+                        
+                        resolve(data);
                     }
                     
                     if (data.result.event === 'UserDepositedEvent') {
                         cleanup();
-
+                        
                         resolve(data)
                     }
                 } catch (err) {
@@ -250,46 +257,121 @@ export default class FunnyFunSdk {
             await this.getBlockchainData();
         }
 
+        if (!params.isLocked){
+            params.isLocked = false;
+            params.amountLocked = '0';
+            params.timeLocked = 0;
+        }
+
+        if (params.isLocked){
+            if (!params.timeLocked) {
+                throw new Error(`amount locked must be exsits when token need to locked`);
+            }
+        };
+
         const accountBalance = await this.getAccountBalance();
         const filteredBalance = accountBalance.filter((item) => item.tokenId === params.quoteTokenId);
         const platformBalance = filteredBalance[0];
         const exactInitialBuy = ethers.parseUnits(params.initialBuyPrice, platformBalance.tokenDecimals);
 
-        if (exactInitialBuy > 0) {
-            const exactPlarformBalance = ethers.parseUnits(params.initialBuyPrice, platformBalance.tokenDecimals);
-            if (exactPlarformBalance < 0) throw new Error(`Insufficient balance user on platform, please deposit first`);
-        }
-        let metadataUrl = '';
-        if (this.config.network !== DEFAULT_NETWORK_WALLET.solana) {
-            /**@type {import("./service/api/constant").tokenMetaData} */
-            const metadata = {
-                blockchainKey: this.blockchain?.key ?? '',
-                tokenName: params.tokenName,
-                tokenSymbol: params.tokenSymbol,
-                tokenImage: params.tokenImage,
-                tokenDescription: params.tokenDescription,
-                tokenDiscord: params.tokenDiscord,
-                tokenWebsite: params.tokenWebsite,
-                tokenTwitter: params.tokenTwitter,
-                tokenTelegram: params.tokenTelegram
+        
+        try {
+            let initialBuyAmount = BigInt(0);
+            if (exactInitialBuy > 0) {
+                const exactPlarformBalance = ethers.parseUnits(params.initialBuyPrice, platformBalance.tokenDecimals);
+                if (exactPlarformBalance < 0) throw new Error(`Insufficient balance user on platform, please deposit first`);
+
+                const premarketPrice = await this.config.api.premarketRequest({
+                    blockchainKey: this.blockchain?.key ?? '',
+                    quoteTokenId: params.quoteTokenId,
+                    price: params.initialBuyPrice
+                });
+
+                params.amountLocked = premarketPrice.amount;
+
+                if (this.config.network === DEFAULT_NETWORK_WALLET.solana) {
+                    initialBuyAmount = parseUnits(premarketPrice.amount, platformBalance.tokenDecimals);
+                    const tokenSupply = DEFAULT_TOKEN_SUPPLY * 10 ** platformBalance.tokenDecimals;
+                    const streamFlow = initialBuyAmount / 100n;
+                    params.amountLocked = (BigInt(tokenSupply) - initialBuyAmount - streamFlow).toString();
+                }
             }
 
-            const url = await this.uplaodMetaData(metadata);
+            /** @type {Number} */
+            let timeLocked = 0;
+            if (params.timeLocked && params.isLocked) {
+                timeLocked = params.timeLocked && params.isLocked ? params.timeLocked : 0;
+            }
 
-            metadataUrl = url;
+            if (!this.blockchain?.tokenFactoryContractAddress) throw new Error(`factory address undefined`);
+            
+            let metadataUrl = '';
+            if (this.config.network === DEFAULT_NETWORK_WALLET.solana) {
+                /**@type {import("./service/api/constant").tokenMetaData} */
+                const metadata = {
+                    blockchainKey: this.blockchain?.key ?? '',
+                    tokenName: params.tokenName,
+                    tokenSymbol: params.tokenSymbol,
+                    tokenImage: params.tokenImage,
+                    tokenDescription: params.tokenDescription,
+                    tokenDiscord: params.tokenDiscord,
+                    tokenWebsite: params.tokenWebsite,
+                    tokenTwitter: params.tokenTwitter,
+                    tokenTelegram: params.tokenTelegram
+                }
+    
+                const url = await this.uplaodMetaData(metadata);
+    
+                metadataUrl = url.tokenMetadataUrl;
+            }
+            
+            /** @type {String} */
+            let lockAmount = '0';
+            if (params.amountLocked && params.isLocked) {
+                lockAmount = !params.amountLocked && !params.isLocked ? '0' : params.amountLocked;
+            }
+
+            /**@type {any} */
+            let update
+            if (this.config.network === DEFAULT_NETWORK_WALLET.solana) {
+                const deployToken = await this.deployToken(
+                    params.tokenName,
+                    params.tokenSymbol,
+                    params.isLocked,
+                    lockAmount,
+                    timeLocked,
+                    initialBuyAmount,
+                    metadataUrl
+                );
+        
+                params.txHash = deployToken;
+                console.log(deployToken);
+                
+
+                update = await this.createToken(params);
+            }else{
+                const listenPromise = this.listener(this.blockchain?.tokenFactoryContractAddress, params)
+
+                const deployToken = await this.deployToken(
+                    params.tokenName,
+                    params.tokenSymbol,
+                    params.isLocked,
+                    lockAmount,
+                    timeLocked,
+                    BigInt(0),
+                    metadataUrl
+                );
+        
+                params.txHash = deployToken;
+        
+                const listener = await listenPromise;
+                update = await this.createToken(params);
+            }
+            
+            return update;
+        } catch (/** @type {any} */error) {
+            throw new Error(error);
         }
-
-        if (!this.blockchain?.tokenFactoryContractAddress) throw new Error(`factory address undefined`);
-        const deployToken = await this.deployToken(params.tokenName, params.tokenSymbol, metadataUrl);
-
-        if (this.config.network !== DEFAULT_NETWORK_WALLET.solana) {
-            params.txHash = deployToken;
-        }else{
-            params.tokenAddress = deployToken;
-        }
-
-
-        return await this.listener(this.blockchain?.tokenFactoryContractAddress, params);
     }
 
     /**
@@ -319,6 +401,7 @@ export default class FunnyFunSdk {
         if (!this.blockchain) {
             await this.getBlockchainData();
         }
+
         if (body.blockchainKey !== this.blockchain?.key) {
             throw new Error(`invalid blockchain key`);
         }
@@ -336,14 +419,25 @@ export default class FunnyFunSdk {
             throw new Error(`invalid token address`);
         }
         
-        const amount = Math.floor(parseFloat(body.amount))
+        const amount = parseFloat(body.amount)
         if (amount <= 0) {
             throw new Error(`amount deposit cannot lower or equal then zero`);
         }
         if (!this.blockchain) {
             throw new Error(`data blockchain is invalid`);
         }
+
+        /** @type {string} */
+        let address = '';
+        if (typeof this.config.walletConfig.address !== 'string') {
+            /** @type {string} */
+            address = this.config.walletConfig.address.toString();
+        }else{
+            address = this.config.walletConfig.address;
+        }
+        
         try {
+            const listenPromise = this.listener(address);
             const tokenType = platformBalance.tokenId.split(':')
             if(tokenType[0] === 'erc20' || tokenType[0] === 'token') {
                 const token = body.tokenId.split(':')[1];
@@ -353,15 +447,7 @@ export default class FunnyFunSdk {
                     token
                 );
                 
-                /** @type {string} */
-                let address = '';
-                if (typeof this.config.walletConfig.address !== 'string') {
-                    /** @type {string} */
-                    address = this.config.walletConfig.address.toString();
-                }else{
-                    address = this.config.walletConfig.address;
-                }
-                const listen = await this.listener(address);
+                const listen = await listenPromise;
                 
                 return {
                     message: `user deposited success`,
@@ -395,7 +481,7 @@ export default class FunnyFunSdk {
         if (!body.blockchainKey) {
             body.blockchainKey = this.blockchain?.key;
         }
-
+        
         const accountBalance = await this.getAccountBalance();
         const filteredBalance = accountBalance.filter((item) => item.blockchainKey === body.blockchainKey && item.tokenId === body.tokenId);
         
@@ -407,26 +493,28 @@ export default class FunnyFunSdk {
             throw new Error(`amount deposit cannot lower or equal then zero`);
         }
 
+        /** @type {string} */
+        let address = '';
+        if (typeof this.config.walletConfig.address !== 'string') {
+            /** @type {string} */
+            address = this.config.walletConfig.address.toString();
+        }else{
+            address = this.config.walletConfig.address;
+        }
+        
         try {
+            const listenPromise = this.listener(address)
             await this.config.wallet.deposit(
                 this.blockchain?.depositAddress,
                 body.amount
             );
 
-            /** @type {string} */
-            let address = '';
-            if (typeof this.config.walletConfig.address !== 'string') {
-                /** @type {string} */
-                address = this.config.walletConfig.address.toString();
-            }else{
-                address = this.config.walletConfig.address;
-            }
-            const listen = await this.listener(address);
+            const listen = await listenPromise;
             
             return {
                 message: `user deposited success`,
-                time: listen.result.depositTime,
-                txHash: listen.result.depositTxHash
+                time: listen.result.data.depositTime,
+                txHash: listen.result.data.depositTxHash
             }
         } catch (/** @type {any} */error) {
             throw new Error(error);

@@ -44,7 +44,7 @@ export const baseRequest = (baseUrl, secure = true) => {
  */
 export const filterBlockchainNetwork = (data, network, chainId) => {
     let filtered;
-    if (typeof chainId === 'undefined' || typeof chainId !== 'number' || isNaN(chainId)) {
+    if (typeof chainId === 'undefined' || typeof chainId !== 'number' || isNaN(chainId) || network === DEFAULT_NETWORK_WALLET.solana) {
         filtered = data.filter(item => item.key.startsWith('solana'));
     } else {
         filtered = data.filter(item => item.key.endsWith(chainId.toString()));

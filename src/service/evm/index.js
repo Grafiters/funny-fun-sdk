@@ -1,13 +1,13 @@
 // @ts-check
 
-import { ethers } from "ethers";
-import { SiweMessage } from "siwe";
+import { ethers, parseUnits } from "ethers";
 import { abi, erc20abi, paymentManagerAbi } from "./abi";
-import { createPublicClient, createWalletClient, http, isHex, parseSignature } from "viem";
+import { createWalletClient, http, isHex } from "viem";
 import { createSiweMessage } from "viem/siwe";
 import { blockchains } from "./blockchains";
 import { privateKeyToAccount } from "viem/accounts";
 import { convertToHexViem } from "../../utils/convert-string-to-hex-address";
+import { getFutureEpochInMinutes } from "../../utils/getFutureEpoach";
 
 /**
  * @class EVMWallet
@@ -134,9 +134,13 @@ export default class EVMWallet {
      * @param {String} tokenName - an token tokenName required
      * @param {String} tokenSymbol - an token tokenSymbol required
      * @param {String} factoryAddress - an address smart contract
+     * @param {boolean} isLocked
+     * @param {string} amountLocked
+     * @param {number} timeLocked
+     * @param {BigInt} initialbuyAmount
      * @returns {Promise<String|any>} - returning hash transaction of create token
      */
-    createToken = async (tokenName, tokenSymbol, factoryAddress) => {
+    createToken = async (tokenName, tokenSymbol, isLocked, amountLocked, timeLocked, initialbuyAmount, factoryAddress) => {
         if(!isHex(factoryAddress)) throw new Error(`Invalid factory address format`);
         const contract = new ethers.Contract(factoryAddress, this.EvmConfig.abiFactory, this.EvmConfig.wallet);
         
@@ -150,7 +154,12 @@ export default class EVMWallet {
                 functionName: 'createToken',
                 value: fee,
                 chain: this.EvmConfig.provider.chain,
-                args: [tokenName, tokenSymbol, zero, zero]
+                args: [
+                    tokenName,
+                    tokenSymbol,
+                    isLocked ? parseUnits(amountLocked, 6) : zero,
+                    isLocked ? BigInt(getFutureEpochInMinutes(timeLocked)) : zero
+                ]
             });
             
             return txHash;
@@ -194,12 +203,8 @@ export default class EVMWallet {
         if (!tokenAddress) throw new Error(`token address is required`);
         const contract = new ethers.Contract(depositAddress, this.EvmConfig.abiPayment, this.EvmConfig.wallet);
         
-        // const allowance = await this.allowance(depositAddress, tokenAddress);
         await this.approve(depositAmount, depositAddress, tokenAddress, tokenDecimal);
         const amount = ethers.parseUnits(depositAmount, tokenDecimal);
-        // if (allowance < amount) {
-        //     await this.approve(depositAmount, depositAddress, tokenAddress, tokenDecimal);
-        // }
 
         try {
             const tx = await contract.depositToken(

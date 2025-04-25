@@ -187,7 +187,7 @@ export default class Platform {
     /**
      * upload metadata to ipfs
      * @param {import("./constant").tokenMetaData} params - body parameter to request
-     * @returns {Promise<String>}
+     * @returns {Promise<{tokenMetadataUrl: string}>}
      */
     uploadMetaData = async (params) => {
         const isImage = dataUrl(params.tokenImage);
@@ -206,7 +206,7 @@ export default class Platform {
 
         try {
             const req = await this.fetch.post('/token-metadata', params);
-            /**@type {string} */
+            /**@type {{tokenMetadataUrl: string}} */
             const res = req.data;
             return res
         } catch (/** @type {any} */ error) {
@@ -234,10 +234,25 @@ export default class Platform {
 
         try {
             const req = await this.fetch.post('/tokens', params);
+            console.log(req);
+            
             const res = req.data;
             return res;
+
         } catch (/** @type {any} */ error) {
-            throw new Error(error);
+            let errMsg = 'unknown';
+
+            if (error.response) {
+                errMsg = `Response error: ${error.response.status}`;
+            } else if (error.request) {
+                errMsg = 'No response (possible timeout or network error)';
+            } else if (error.code) {
+                errMsg = error.code;
+            } else if (error.message) {
+                errMsg = error.message;
+            }
+
+            throw new Error(JSON.stringify({up: false, error: errMsg, status: error.response?.status || null}));
         }
     }
 
@@ -375,5 +390,21 @@ export default class Platform {
         } catch (/** @type {any} */ error) {
             throw new Error(error);
         }
-    }   
-}
+    }
+
+    /**
+     * get premarket price data for initial create token when token is locked
+     * @param {import("./constant").preMarketRequest} body
+     * @returns {Promise<{amount: string, formattedAmount: string}>}
+     */
+    premarketRequest = async(body) => {
+        try {
+            const req = await this.fetch.post(`/premarket-buy-amount`, body);
+
+            /** @type {{amount: string, formattedAmount: string}} */
+            return req.data
+        } catch (/** @type {any} */ error) {
+            throw new Error(error);
+        }
+    }
+};

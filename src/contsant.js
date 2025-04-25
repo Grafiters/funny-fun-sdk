@@ -14,3 +14,11 @@ export const DEFAULT_MESSAGE = {
     evm: 'Sign in with Ethereum to the app',
     solana: 'Sign in with Solana to the app'
 }
+
+export const SOLANA_NETWORK_MAINNET_ADDRESS = '5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp';
+
+export const TOKEN_LOCKED_TIME_IN_MINUTES = {
+    5: 5,
+    10: 10,
+    15: 15
+}

@@ -1,9 +1,10 @@
 // @ts-check
 
-import { clusterApiUrl, Connection, Keypair, LAMPORTS_PER_SOL, PublicKey, SystemProgram, Transaction } from "@solana/web3.js";
+import { clusterApiUrl, Connection, Keypair, LAMPORTS_PER_SOL, PublicKey, sendAndConfirmRawTransaction, sendAndConfirmTransaction, SystemProgram, Transaction } from "@solana/web3.js";
 import { Header, Payload, SIWS } from "@web3auth/sign-in-with-solana";
 import nacl from "tweetnacl";
-import { DEFAULT_TOKEN_SUPPLY, MINT_SIZE } from "../../contsant";
+import bs58 from 'bs58';
+import { DEFAULT_TOKEN_SUPPLY, SOLANA_NETWORK_MAINNET_ADDRESS } from "../../contsant";
 import { parseUnits } from "ethers";
 import {
     ASSOCIATED_TOKEN_PROGRAM_ID,
@@ -15,10 +16,14 @@ import {
     createTransferCheckedInstruction,
     getAssociatedTokenAddress,
     getAssociatedTokenAddressSync,
+    getMinimumBalanceForRentExemptMint,
     getMintLen,
     TOKEN_PROGRAM_ID 
 } from "@solana/spl-token";
 import { createCreateMetadataAccountV3Instruction } from "./metaplex";
+import { log } from "node:console";
+import { createStreamflowCreateInstruction, STREAMFLOW_DEVNET_PROGRAM_ID, STREAMFLOW_MAINNET_PROGRAM_ID } from "./streamflow";
+import { getFutureEpochInMinutes } from "../../utils/getFutureEpoach";
 
 /**
  * @class SolanaWallet
@@ -53,10 +58,12 @@ export default class SolanaWallet {
             throw new Error('privateKey is required.');
         }
         try {
-            if (options.privateKey.length > 64) {
-                this.privateKey = Uint8Array.from(Buffer.from(options.privateKey, 'base64'));
+            const convertPrivteKeyString = JSON.parse(options.privateKey);
+
+            if (convertPrivteKeyString.length > 64) {
+                this.privateKey = Uint8Array.from(Buffer.from(convertPrivteKeyString, 'base64'));
             }else{
-                this.privateKey = Uint8Array.from(Buffer.from(options.privateKey, 'hex'));
+                this.privateKey = Uint8Array.from(Buffer.from(convertPrivteKeyString, 'hex'));
             }
         } catch (error) {
             throw new Error("Invalid privateKey format. Must be base64 or hex.");
@@ -77,7 +84,7 @@ export default class SolanaWallet {
         const domainParse = new URL(this.serverUrl);
         this.domain = domainParse.hostname;
 
-        const provider = new Connection(clusterApiUrl(options.cluster), 'confirmed')
+        const provider = new Connection('https://devnet.helius-rpc.com/?api-key=8e3821c4-4a7f-4876-b3d1-e1f95721569b', 'finalized')
         const wallet = Keypair.fromSecretKey(this.privateKey);
 
         /** @type {string|undefined} */
@@ -128,9 +135,9 @@ export default class SolanaWallet {
         const text = message.prepareMessage();
         const encode = new TextEncoder().encode(text);
         const signature = nacl.sign.detached(encode, this.privateKey);
-        const signToBase64 = Buffer.from(signature).toString('base64');
+        const signTobs58 = bs58.encode(signature);
 
-        const signToAuth = `solana.${(btoa(JSON.stringify(payload)))}.${signToBase64}`;
+        const signToAuth = `solana.${(btoa(JSON.stringify(payload)))}.${signTobs58}`;
 
         return signToAuth;
     }
@@ -138,12 +145,16 @@ export default class SolanaWallet {
     /**
      * @param {String} tokenName - an name of token
      * @param {String} tokenSymbol - an symbol of token
+     * @param {boolean} isLocked
+     * @param {string} amountLocked
+     * @param {number} timeLocked
      * @param {String} factoryAddress - an factory address from config
+     * @param {BigInt} initialbuyAmount
      * @param {String} [metadataUrl] - an token metadata url
-     * @param {String} [tokenCreationFee] - an creation fee 
+     * @param {String} [tokenCreationFee] - an creation fee
      * @returns {Promise<String|any>} - returning hash transaction of create token
      */
-    createToken = async (tokenName, tokenSymbol, factoryAddress, metadataUrl, tokenCreationFee) => {
+    createToken = async (tokenName, tokenSymbol, isLocked, amountLocked, timeLocked, initialbuyAmount, factoryAddress, metadataUrl, tokenCreationFee) => {
         if (!metadataUrl){
             throw new Error(`meta data url is required`);
         }
@@ -152,7 +163,7 @@ export default class SolanaWallet {
             throw new Error(`token creation is required`);
         }
         const tokenKeypair = Keypair.generate();
-        const rentExamp = await this.SolanaConfig.provider.getMinimumBalanceForRentExemption(MINT_SIZE);
+        const rentExamp = await getMinimumBalanceForRentExemptMint(this.SolanaConfig.provider);
         const space = getMintLen([]);
         const tokenDecimals = 6;
         const tokenSupply = DEFAULT_TOKEN_SUPPLY * 10 ** tokenDecimals;
@@ -160,7 +171,7 @@ export default class SolanaWallet {
         const feeAmount = parseUnits(tokenCreationFee, tokenDecimals);
         const tokenAddress = tokenKeypair.publicKey.toString();
         const toWallet = new PublicKey(transferAddress);
-        const mint = new PublicKey(transferAddress);
+        const mint = new PublicKey(tokenAddress);
 
         try {
             const fromTokenAddress = await getAssociatedTokenAddress(mint, this.SolanaConfig.address);
@@ -171,55 +182,54 @@ export default class SolanaWallet {
                 this.SolanaConfig.address,
                 false,
                 TOKEN_PROGRAM_ID,
-                ASSOCIATED_TOKEN_PROGRAM_ID
-            )
+                ASSOCIATED_TOKEN_PROGRAM_ID,
+             );
 
             const tx = new Transaction();
             // create account token
             tx.add(
                 SystemProgram.createAccount({
-                    fromPubkey: this.SolanaConfig.address,
-                    newAccountPubkey: tokenKeypair.publicKey,
-                    lamports: rentExamp,
-                    space: space,
-                    programId: TOKEN_PROGRAM_ID
-                })
-            );
+                   fromPubkey: this.SolanaConfig.address,
+                   newAccountPubkey: tokenKeypair.publicKey,
+                   lamports: rentExamp,
+                   space,
+                   programId: TOKEN_PROGRAM_ID,
+                }),
+             );
 
             // initsialisasi mint
             tx.add(
                 createInitializeMint2Instruction(
-                tokenKeypair.publicKey,
-                tokenDecimals,
-                this.SolanaConfig.address,
-                this.SolanaConfig.address,
-                TOKEN_PROGRAM_ID,
+                   tokenKeypair.publicKey,
+                   tokenDecimals,
+                   this.SolanaConfig.address,
+                   this.SolanaConfig.address,
+                   TOKEN_PROGRAM_ID,
                 ),
-            );
+             );
 
             // Buat ATA
             tx.add(
                 createAssociatedTokenAccountIdempotentInstruction(
-                this.SolanaConfig.address,
-                ata,
-                this.SolanaConfig.address,
-                tokenKeypair.publicKey,
-                TOKEN_PROGRAM_ID,
-                ASSOCIATED_TOKEN_PROGRAM_ID,
+                   this.SolanaConfig.address,
+                   ata,
+                   this.SolanaConfig.address,
+                   tokenKeypair.publicKey,
+                   TOKEN_PROGRAM_ID,
+                   ASSOCIATED_TOKEN_PROGRAM_ID,
                 ),
-            );
-
+             );
             // Mint token ke ATA
             tx.add(
                 createMintToInstruction(
-                    tokenKeypair.publicKey,
-                    ata,
-                    this.SolanaConfig.address,
-                    tokenSupply,
-                    [],
-                    TOKEN_PROGRAM_ID,
+                   tokenKeypair.publicKey,
+                   ata,
+                   this.SolanaConfig.address,
+                   tokenSupply,
+                   [],
+                   TOKEN_PROGRAM_ID,
                 ),
-            );
+             );
 
             // Buat metadata        
             tx.add(
@@ -269,23 +279,23 @@ export default class SolanaWallet {
             // Create associated token account for the user and transfer the token supply
             tx.add(
                 createAssociatedTokenAccountIdempotentInstruction(
-                this.SolanaConfig.address,
-                fromTokenAddress,
-                this.SolanaConfig.address,
-                mint,
-                TOKEN_PROGRAM_ID,
-                ASSOCIATED_TOKEN_PROGRAM_ID,
+                    this.SolanaConfig.address,
+                    fromTokenAddress,
+                    this.SolanaConfig.address,
+                    mint,
+                    TOKEN_PROGRAM_ID,
+                    ASSOCIATED_TOKEN_PROGRAM_ID,
                 ),
             );
 
             tx.add(
                 createAssociatedTokenAccountIdempotentInstruction(
-                this.SolanaConfig.address,
-                toTokenAddress,
-                toWallet,
-                mint,
-                TOKEN_PROGRAM_ID,
-                ASSOCIATED_TOKEN_PROGRAM_ID,
+                    this.SolanaConfig.address,
+                    toTokenAddress,
+                    toWallet,
+                    mint,
+                    TOKEN_PROGRAM_ID,
+                    ASSOCIATED_TOKEN_PROGRAM_ID,
                 ),
             );
 
@@ -294,7 +304,7 @@ export default class SolanaWallet {
                 mint,
                 toTokenAddress,
                 this.SolanaConfig.address,
-                Number(tokenSupply),
+                Number(amountLocked),
                 tokenDecimals,
             );
             tx.add(transferSupplyToken);
@@ -305,11 +315,42 @@ export default class SolanaWallet {
             tx.feePayer = this.SolanaConfig.address;
 
             tx.sign(this.SolanaConfig.wallet, tokenKeypair);
-
+            
             const signature = await this.SolanaConfig.provider.sendRawTransaction(tx.serialize());
-            await this.SolanaConfig.provider.confirmTransaction(signature, 'confirmed');
+            await this.SolanaConfig.provider.confirmTransaction(signature, 'finalized');
 
-            return tokenAddress;
+            if (isLocked) {
+                const tokenLocTx = new Transaction();
+                const metadataKKeypair = Keypair.generate();
+                const detectionNetwork = await this.SolanaConfig.provider.getGenesisHash();
+
+                console.log(detectionNetwork === SOLANA_NETWORK_MAINNET_ADDRESS);
+
+                const streamFlowProgramId = detectionNetwork === SOLANA_NETWORK_MAINNET_ADDRESS ? new PublicKey(STREAMFLOW_MAINNET_PROGRAM_ID) : new PublicKey(STREAMFLOW_DEVNET_PROGRAM_ID);
+                tokenLocTx.add(
+                    createStreamflowCreateInstruction(streamFlowProgramId, {
+                        sender: this.SolanaConfig.address,
+                        metadata: metadataKKeypair.publicKey,
+                        tokenMint: tokenKeypair.publicKey,
+                        data: {
+                            startTime: BigInt(getFutureEpochInMinutes(timeLocked)),
+                            netAmountDeposited: BigInt(initialbuyAmount),
+                        },
+                    })
+                )
+
+                tokenLocTx.recentBlockhash = (await this.SolanaConfig.provider.getLatestBlockhash('finalized')).blockhash;
+                tokenLocTx.feePayer = this.SolanaConfig.address;
+
+                tokenLocTx.sign(this.SolanaConfig.wallet, metadataKKeypair);
+                
+                const tokenLockSignature = await this.SolanaConfig.provider.sendRawTransaction(tokenLocTx.serialize());                
+                await this.SolanaConfig.provider.confirmTransaction(tokenLockSignature, 'confirmed');
+
+                return `${signature},${tokenLockSignature}`;
+            }
+
+            return signature;
         } catch (/** @type {any} */ error) {
             throw new Error(error);
         }
@@ -325,9 +366,9 @@ export default class SolanaWallet {
      */
     deposit = async (depositAddress, depositAmount, tokenAddress, tokenDecimal = 6) => {
         const toWallet = new PublicKey(depositAddress);
-        const exactDepositAmount = Math.floor(parseFloat(depositAmount) * LAMPORTS_PER_SOL);
+        const exactDepositAmount = parseFloat(depositAmount) * LAMPORTS_PER_SOL;
         const tx = new Transaction();
-
+        
         try {
             tx.add(
                 SystemProgram.transfer({
@@ -336,26 +377,15 @@ export default class SolanaWallet {
                     lamports: exactDepositAmount
                 })
             )
-    
-            const { blockhash, lastValidBlockHeight } = await this.SolanaConfig.provider.getLatestBlockhash();
-            tx.recentBlockhash = blockhash;
+
             tx.feePayer = this.SolanaConfig.address;
     
             // Send
-            const signature = await this.SolanaConfig.provider.sendRawTransaction(tx.serialize());
-            const confirmation = await this.SolanaConfig.provider.confirmTransaction(
-                { signature, blockhash, lastValidBlockHeight },
-                'confirmed',
-            );
-    
-            if (confirmation.value.err) {
-                const err = confirmation.value.err;
-                const msg = `Deposit failed. Please try again.`;
-    
-                throw new Error(err ? JSON.stringify(err) : msg);
-            }
-    
-            return signature;
+            const confirmation = await sendAndConfirmTransaction(this.SolanaConfig.provider, tx, [this.SolanaConfig.wallet], {
+                commitment: 'confirmed'
+            })
+
+            return confirmation;
         } catch (/** @type {any}*/error) {
             throw new Error(error);
         }
@@ -369,7 +399,7 @@ export default class SolanaWallet {
      * @param {Number} [tokenDecimal]
      * @returns {Promise<String>}
      */
-    depositToken = async(depositAddress, depositAmount, tokenAddress, tokenDecimal = 6) => {
+    depositToken = async(depositAddress, depositAmount,  tokenAddress, tokenDecimal = 6) => {
         if (!tokenAddress) throw new Error(`token address is required`);
 
         const toWallet = new PublicKey(depositAddress);
@@ -378,6 +408,8 @@ export default class SolanaWallet {
         const mint = new PublicKey(tokenAddress);
         const fromTokenAccount = await getAssociatedTokenAddress(mint, this.SolanaConfig.address);
         const toTokenAccount = await getAssociatedTokenAddress(mint, toWallet);
+
+        const amount = parseUnits(depositAmount, tokenDecimal ?? 9);
 
         try {
             // create ATA sender if it doesn't exist
@@ -410,7 +442,7 @@ export default class SolanaWallet {
                 mint,
                 toTokenAccount,
                 this.SolanaConfig.address,
-                Number(depositAmount),
+                amount,
                 tokenDecimal,
             );
             tx.add(transferIx);
@@ -420,18 +452,9 @@ export default class SolanaWallet {
             tx.feePayer = this.SolanaConfig.address;
 
             // Send
-            const signature = await this.SolanaConfig.provider.sendRawTransaction(tx.serialize());
-            const confirmation = await this.SolanaConfig.provider.confirmTransaction(
-                { signature, blockhash, lastValidBlockHeight },
-                'confirmed',
-            );
-
-            if (confirmation.value.err) {
-                const err = confirmation.value.err;
-                const msg = `Deposit failed. Please try again.`;
-
-                throw new Error(err ? JSON.stringify(err) : msg);
-            }
+            const signature = await sendAndConfirmTransaction(this.SolanaConfig.provider, tx, [this.SolanaConfig.wallet], {
+                commitment: 'confirmed'
+            });
 
             return signature;
         } catch (/** @type {any}*/error) {

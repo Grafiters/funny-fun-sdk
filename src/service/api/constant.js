@@ -53,6 +53,9 @@ import { PublicKey } from "@solana/web3.js";
  * @property {String} tokenSymbol
  * @property {String} tokenDescription
  * @property {String} tokenImage
+ * @property {boolean} [isLocked] - default value of isLocked set into false
+ * @property {string} [amountLocked]
+ * @property {number} [timeLocked]
  * @property {String} [tokenWebsite]
  * @property {String} [tokenTwitter]
  * @property {String} [tokenTelegram]
@@ -385,4 +388,11 @@ import { PublicKey } from "@solana/web3.js";
  * @property {string} formattedBalance
  * @property {string} holdingPercentage
  * @property {boolean} availableAsQuote
+ */
+
+/**
+ * @typedef {Object} preMarketRequest
+ * @property {string} blockchainKey
+ * @property {string} quoteTokenId
+ * @property {string} price
  */

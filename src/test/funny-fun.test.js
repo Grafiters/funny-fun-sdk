@@ -31,13 +31,23 @@ describe(`Funny Fun SDK Integration test`, () => {
         */
         const options = {
             serverUrl: `https://api.nusabyte.com`,
-            privateKey: 'change with your secret key',
+            privateKey: '[125,27,108,231,142,181,170,100,204,131,65,7,30,48,101,102,121,160,180,187,135,192,29,19,71,236,206,172,155,213,142,215,150,175,109,207,7,37,9,162,117,114,55,239,186,227,89,246,254,206,3,216,9,62,185,122,189,100,231,152,123,88,147,211]',
             rpcUrl: 'https://data-seed-prebsc-1-s1.bnbchain.org:8545',
             websocketUrl: 'wss://api.nusabyte.com/api/v1/realtime',
             chainId: 97,
-            network: /**@type {Network} */ "evm", // Ensure 'evm' or 'solana' is passed as a string literal
+            network: /**@type {Network} */ "solana", // Ensure 'evm' or 'solana' is passed as a string literal
             solanaNetwork: "devnet"
         }
+
+        // const options = {
+        //     serverUrl: `https://api.nusabyte.com`,
+        //     privateKey: '[125,27,108,231,142,181,170,100,204,131,65,7,30,48,101,102,121,160,180,187,135,192,29,19,71,236,206,172,155,213,142,215,150,175,109,207,7,37,9,162,117,114,55,239,186,227,89,246,254,206,3,216,9,62,185,122,189,100,231,152,123,88,147,211]',
+        //     rpcUrl: 'https://data-seed-prebsc-1-s1.bnbchain.org:8545',
+        //     websocketUrl: 'wss://api.nusabyte.com/api/v1/realtime',
+        //     chainId: 97,
+        //     network: /**@type {Network} */ "evm", // Ensure 'evm' or 'solana' is passed as a string literal
+        //     solanaNetwork: "devnet"
+        // }
 
         sdk = new FunnyFunSdk(options);
     })
@@ -67,17 +77,22 @@ describe(`Funny Fun SDK Integration test`, () => {
         expect(typeof signature).toBe('string');
     })
 
-    test('should create deposit token', async () => {
+    test('should create deploy token', async () => {
         await sdk.signature();
         const blockchain = await sdk.getBlockchainData();
-        const pairToken = 'erc20:0xCf4E54700156e74918EaF77A9ab8C050C8b05890';
+        const pairToken = 'token:usdcqTQbPEZtm63iRmnJEHUcoHUXgdeu7PjR2tHXzXk';
+
+        // token for testing evm
+        // const pairToken = 'erc20:0xCf4E54700156e74918EaF77A9ab8C050C8b05890';
 
         const deposit = await sdk.deployAndRequestCreateToken({
             blockchainKey: blockchain.key,
             quoteTokenId: pairToken,
-            initialBuyPrice: '0',
+            initialBuyPrice: '1',
             tokenImage: testingImage,
             tokenSymbol: 'TFK',
+            isLocked: true,
+            timeLocked: 5,
             tokenWebsite: 'https://tfk.org',
             tokenTwitter: 'https://x.com/@tfk',
             tokenTelegram: 'https://telegram.org/@tfk',
@@ -86,18 +101,23 @@ describe(`Funny Fun SDK Integration test`, () => {
             tokenDescription: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed ac purus ac eros faucibus commodo commodo eu dui. Maecenas et accumsan odio, interdum ultricies enim. Proin at pharetra quam, eget cursus turpis. Aliquam pharetra nunc vel luctus viverra. Duis ultrices ex quis risus mattis, at scelerisque tellus iaculis. Praesent porta dignissim lorem non tincidunt. Mauris lacus sem, rhoncus sit amet elit at, lacinia commodo tortor. In massa augue, condimentum eu condimentum in, elementum quis nibh. Morbi tempor, diam sit amet vestibulum consectetur, ipsum ligula ultricies libero, ut commodo orci nulla at lorem. Proin sit amet dapibus nisi'
         });
 
-        console.log(deposit);
-        expect(typeof deposit).toBe('string');
-    }, 25000);
+        expect(deposit.message).toBe('Token comment created');
+    }, 100000);
 
     test('should create deposit with spesific amount', async() => {
+        await sdk.signature();
         const blockchain = await sdk.getBlockchainData();
+
+        const tokenNative = 'slip44:714';
+
+        // token native for evm
+        // const tokenNative = 'slip44:714';
 
         /**@type {import('../service/api/constant').depositsCreation} */
         const depositParam = {
             amount: '0.001',
             blockchainKey: blockchain.key,
-            tokenId: 'slip44:714'
+            tokenId: tokenNative
         }
 
         const deposit = await sdk.createDeposit(depositParam);
@@ -108,13 +128,19 @@ describe(`Funny Fun SDK Integration test`, () => {
     }, 25000);
 
     test('should create deposit token with spesific amount', async() => {
+        await sdk.signature();
         const blockchain = await sdk.getBlockchainData();
+
+        const token = 'token:usdcqTQbPEZtm63iRmnJEHUcoHUXgdeu7PjR2tHXzXk';
+        
+        // token testing for evm
+        // const token = 'erc20:0xCf4E54700156e74918EaF77A9ab8C050C8b05890';
 
         /**@type {import('../service/api/constant').depositsCreation} */
         const depositParam = {
-            amount: '1',
+            amount: '10',
             blockchainKey: blockchain.key,
-            tokenId: 'erc20:0xCf4E54700156e74918EaF77A9ab8C050C8b05890'
+            tokenId: token
         }
 
         const deposit = await sdk.createDepositToken(depositParam);
@@ -129,12 +155,17 @@ describe(`Funny Fun SDK Integration test`, () => {
         
         const blockchain = await sdk.getBlockchainData();
 
+        const userAddress = 'B9DJgiG4TdkQ5HjRpGUTRit6MVHQqsZgCT9tzABBB9ea';
+
+        // user address for evm
+        // const userAddress = '0x97F3222Bb839D54cf033b5393C700EC28ECc14cD';
+
         /**@type {import('../service/api/constant').depositQuery} */
         const query = {
             page: 1,
             limit: 25,
             blockchainKey: blockchain.key,
-            userAddress: '0x97F3222Bb839D54cf033b5393C700EC28ECc14cD'
+            userAddress: userAddress
         }
 
         const depositList = await sdk.getDeposit(query);
@@ -146,15 +177,19 @@ describe(`Funny Fun SDK Integration test`, () => {
     test(`should get trade history`, async () => {
         const sign = await sdk.signature();
         const blockchain = await sdk.getBlockchainData();
+
+        const userAddress = 'B9DJgiG4TdkQ5HjRpGUTRit6MVHQqsZgCT9tzABBB9ea';
+
+        // user address for evm
+        // const userAddress = '0x97F3222Bb839D54cf033b5393C700EC28ECc14cD';
         /**
          * @type {import('../service/api/constant').tradeQuery}
          */
         const query = {
             blockchainKey: blockchain.key,
-            userAddress: '0x97F3222Bb839D54cf033b5393C700EC28ECc14cD'
+            userAddress: userAddress
         };
         const trade = await sdk.getTradeHistory(query);
-        console.log(trade);
         expect(Array.isArray(trade)).toBe(true);
     })
 
@@ -184,12 +219,13 @@ describe(`Funny Fun SDK Integration test`, () => {
             baseTokenId: 'erc20:0x1737eFBa9e477c6a9ae8d7F47332604eEcc2a567',
             quoteTokenId: 'erc20:0xCf4E54700156e74918EaF77A9ab8C050C8b05890',
             side: 'buy',
-            marketType: 'price',
-            amount: '0.1',
+            marketType: 'amount',
+            price: '0.1',
             blockchainKey: blockchain.key
         })
 
         console.log(getEstimateAmount);
+        expect(typeof getEstimateAmount).toBe('object');
                 
         /**
          * @type {import('../service/api/constant').tokenOrder}
@@ -215,12 +251,21 @@ describe(`Funny Fun SDK Integration test`, () => {
         const sign = await sdk.signature();
         const blockchain = await sdk.getBlockchainData();
 
+        const token = 'token:usdcqTQbPEZtm63iRmnJEHUcoHUXgdeu7PjR2tHXzXk';
+        
+        // token testing for evm
+        // const token = 'erc20:0xCf4E54700156e74918EaF77A9ab8C050C8b05890';
+
+        const userAddress = 'B9DJgiG4TdkQ5HjRpGUTRit6MVHQqsZgCT9tzABBB9ea';
+
+        // user address for evm
+        // const userAddress = '0x97F3222Bb839D54cf033b5393C700EC28ECc14cD';
         /**
          * @type {import('../service/api/constant').withdrawalRequest}
          */
         const body = {
-            tokenId: 'erc20:0xCf4E54700156e74918EaF77A9ab8C050C8b05890',
-            userAddress: '0x97F3222Bb839D54cf033b5393C700EC28ECc14cD',
+            tokenId: token,
+            userAddress: userAddress,
             requestAmount: '0.2'
         }
 
@@ -236,11 +281,15 @@ describe(`Funny Fun SDK Integration test`, () => {
         const sign = await sdk.signature();
         const blockchain = await sdk.getBlockchainData();
 
+        const userAddress = 'B9DJgiG4TdkQ5HjRpGUTRit6MVHQqsZgCT9tzABBB9ea';
+
+        // user address for evm
+        // const userAddress = '0x97F3222Bb839D54cf033b5393C700EC28ECc14cD';
         /**
          * @type {import('../service/api/constant').withdrawalQuery}
          */
         const query = {
-            userAddress: '0x97F3222Bb839D54cf033b5393C700EC28ECc14cD',
+            userAddress: userAddress,
             page: 1,
             limit: 25
         }
