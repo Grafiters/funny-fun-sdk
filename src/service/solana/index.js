@@ -41,6 +41,7 @@ export default class SolanaWallet {
     * @arg {String} [options.serverUrl] - an server url for making request
     * @arg {String} [options.address] - an evm user address for authentiation
     * @arg {String} [options.privateKey] - an private key to interaction with web3 or smart contract - e.g ()
+    * @arg {String} [options.rpcUrl] - an rpc url for blockchain
     * @arg {Cluster} [options.cluster] - an rpc url from blockchain
     * @arg {Number} [options.chainId] - chain id from connected network
     */
@@ -84,7 +85,8 @@ export default class SolanaWallet {
         const domainParse = new URL(this.serverUrl);
         this.domain = domainParse.hostname;
 
-        const provider = new Connection('https://devnet.helius-rpc.com/?api-key=8e3821c4-4a7f-4876-b3d1-e1f95721569b', 'finalized')
+        if (!options.rpcUrl) throw new Error(`rpc url must be exists`);
+        const provider = new Connection(options.rpcUrl, 'finalized')
         const wallet = Keypair.fromSecretKey(this.privateKey);
 
         /** @type {string|undefined} */

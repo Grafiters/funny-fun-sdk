@@ -31,8 +31,8 @@ describe(`Funny Fun SDK Integration test`, () => {
         */
         const options = {
             serverUrl: `https://api.nusabyte.com`,
-            privateKey: '[125,27,108,231,142,181,170,100,204,131,65,7,30,48,101,102,121,160,180,187,135,192,29,19,71,236,206,172,155,213,142,215,150,175,109,207,7,37,9,162,117,114,55,239,186,227,89,246,254,206,3,216,9,62,185,122,189,100,231,152,123,88,147,211]',
-            rpcUrl: 'https://data-seed-prebsc-1-s1.bnbchain.org:8545',
+            privateKey: 'change with your private key',
+            rpcUrl: 'https://devnet.helius-rpc.com/?api-key=8e3821c4-4a7f-4876-b3d1-e1f95721569b',
             websocketUrl: 'wss://api.nusabyte.com/api/v1/realtime',
             chainId: 97,
             network: /**@type {Network} */ "solana", // Ensure 'evm' or 'solana' is passed as a string literal
@@ -41,7 +41,7 @@ describe(`Funny Fun SDK Integration test`, () => {
 
         // const options = {
         //     serverUrl: `https://api.nusabyte.com`,
-        //     privateKey: '[125,27,108,231,142,181,170,100,204,131,65,7,30,48,101,102,121,160,180,187,135,192,29,19,71,236,206,172,155,213,142,215,150,175,109,207,7,37,9,162,117,114,55,239,186,227,89,246,254,206,3,216,9,62,185,122,189,100,231,152,123,88,147,211]',
+        //     privateKey: 'change with your private key',
         //     rpcUrl: 'https://data-seed-prebsc-1-s1.bnbchain.org:8545',
         //     websocketUrl: 'wss://api.nusabyte.com/api/v1/realtime',
         //     chainId: 97,
