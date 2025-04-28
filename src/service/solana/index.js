@@ -1,6 +1,6 @@
 // @ts-check
 
-import { clusterApiUrl, Connection, Keypair, LAMPORTS_PER_SOL, PublicKey, sendAndConfirmRawTransaction, sendAndConfirmTransaction, SystemProgram, Transaction } from "@solana/web3.js";
+import { Connection, Keypair, LAMPORTS_PER_SOL, PublicKey, sendAndConfirmRawTransaction, sendAndConfirmTransaction, SystemProgram, Transaction } from "@solana/web3.js";
 import { Header, Payload, SIWS } from "@web3auth/sign-in-with-solana";
 import nacl from "tweetnacl";
 import bs58 from 'bs58';
@@ -21,7 +21,6 @@ import {
     TOKEN_PROGRAM_ID 
 } from "@solana/spl-token";
 import { createCreateMetadataAccountV3Instruction } from "./metaplex";
-import { log } from "node:console";
 import { createStreamflowCreateInstruction, STREAMFLOW_DEVNET_PROGRAM_ID, STREAMFLOW_MAINNET_PROGRAM_ID } from "./streamflow";
 import { getFutureEpochInMinutes } from "../../utils/getFutureEpoach";
 

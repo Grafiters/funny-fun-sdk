@@ -3,14 +3,23 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "build": "tsc",
+    "build": "rolldown --config rolldown.config.js",
     "prepare": "npm run build",
     "test": "jest"
   },
-  "keywords": [],
+  "exports": {
+    "require": "./dist/index.cjs",
+    "import": "./dist/index.js"
+  },
+  "files": [
+    "dist/",
+    "readme.md",
+    "LICENSE"
+  ],  
   "author": "backend-dev",
   "license": "MIT",
-  "description": "",
+  "description": "A lightweight SDK for FunnyFun blockchain interactions",
+  "module": "dist/index.js",
   "type": "module",
   "dependencies": {
     "@raydium-io/raydium-sdk-v2": "^0.1.126-alpha",
@@ -38,10 +47,11 @@
     "eslint-plugin-import": "^2.31.0",
     "eslint-plugin-jsdoc": "^50.6.9",
     "jest": "^29.7.0",
+    "rolldown": "^1.0.0-beta.8",
     "ts-jest": "^29.3.2",
     "typescript": "^5.8.3"
   },
-  "keyword": [
+  "keywords": [
     "funny-fun",
     "sdk",
     "ethers",
