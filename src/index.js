@@ -6,7 +6,6 @@ import SolanaWallet from "./service/solana";
 import { filterBlockchainNetwork } from "./utils";
 import WebSocket from 'ws';
 import { ethers, parseUnits } from "ethers";
-import { getFutureEpochInMinutes } from "./utils/getFutureEpoach";
 
 /**
  * @class FunnyFunSdk
@@ -167,8 +166,6 @@ export default class FunnyFunSdk {
      * @returns {Promise<any>}
      */
     createToken = async(params) => {
-        console.log(params);
-        
         try {
             const req = await this.config.api.uploadTokenData(params);
             return req;
@@ -345,8 +342,6 @@ export default class FunnyFunSdk {
                 );
         
                 params.txHash = deployToken;
-                console.log(deployToken);
-                
 
                 update = await this.createToken(params);
             }else{
