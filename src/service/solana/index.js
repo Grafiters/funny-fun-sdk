@@ -46,8 +46,6 @@ export default class SolanaWallet {
     */
     constructor(options = {}) {
         // Validasi untuk memastikan serverUrl tidak undefined
-        console.log(options);
-        
         if (!options.serverUrl) {
             throw new Error('serverUrl is required.');
         }
@@ -324,8 +322,6 @@ export default class SolanaWallet {
                 const tokenLocTx = new Transaction();
                 const metadataKKeypair = Keypair.generate();
                 const detectionNetwork = await this.SolanaConfig.provider.getGenesisHash();
-
-                console.log(detectionNetwork === SOLANA_NETWORK_MAINNET_ADDRESS);
 
                 const streamFlowProgramId = detectionNetwork === SOLANA_NETWORK_MAINNET_ADDRESS ? new PublicKey(STREAMFLOW_MAINNET_PROGRAM_ID) : new PublicKey(STREAMFLOW_DEVNET_PROGRAM_ID);
                 tokenLocTx.add(

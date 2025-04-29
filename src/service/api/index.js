@@ -234,8 +234,6 @@ export default class Platform {
 
         try {
             const req = await this.fetch.post('/tokens', params);
-            console.log(req);
-            
             const res = req.data;
             return res;
 
@@ -380,8 +378,6 @@ export default class Platform {
      * @returns {Promise<import("./constant").amountData>}
      */
     estimatedAmountMarkets = async(params) => {
-        console.log(`market-${params.side}-${params.marketType}`);
-        
         try {
             const req = await this.fetch.post(`/market-${params.side}-${params.marketType}`, params);
             

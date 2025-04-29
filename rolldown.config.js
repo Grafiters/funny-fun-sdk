@@ -12,12 +12,6 @@ export default defineConfig({
             entryFileNames: 'index.js',
             minify: true,
             sourcemap: true,
-        },
-        {
-            format: 'cjs',
-            entryFileNames: 'index.cjs',
-            minify: true,
-            sourcemap: true
         }
     ]
 });

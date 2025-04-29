@@ -190,11 +190,9 @@ export default class FunnyFunSdk {
             const onMessage = async (/** @type {any} */ event) => {
                 try {
                     const data = JSON.parse(event.data);
-                    console.log(data);
                     
                     if (data.result.event === 'TokenCreatedEvent' && params) {
                         cleanup();
-                        console.log(data);
                         
                         resolve(data);
                     }
