@@ -7,7 +7,7 @@ import { createSiweMessage } from "viem/siwe";
 import { blockchains } from "./blockchains";
 import { privateKeyToAccount } from "viem/accounts";
 import { convertToHexViem } from "../../utils/convert-string-to-hex-address";
-import { getFutureEpochInMinutes } from "../../utils/getFutureEpoach";
+import { getFutureEpochInMinutes, getTimeForSignature } from "../../utils/getFutureEpoach";
 
 /**
  * @class EVMWallet
@@ -108,6 +108,9 @@ export default class EVMWallet {
         if (!isHex(this.address)) throw new Error(`Address invalid hex format`);
         if (!this.chainId) throw new Error(``);
 
+        const future = getTimeForSignature();
+        const dateExp = new Date(future * 1000);
+
         try {
             const siweMessage = createSiweMessage({
                 domain: params.domain,
@@ -117,6 +120,7 @@ export default class EVMWallet {
                 version: '1',
                 chainId: this.chainId,
                 nonce: params.nonce?.toString(),
+                expirationTime: dateExp,
             });
             
             const siweSignature = await this.EvmConfig.wallet.signMessage(siweMessage);

@@ -22,7 +22,7 @@ import {
 } from "@solana/spl-token";
 import { createCreateMetadataAccountV3Instruction } from "./metaplex";
 import { createStreamflowCreateInstruction, STREAMFLOW_DEVNET_PROGRAM_ID, STREAMFLOW_MAINNET_PROGRAM_ID } from "./streamflow";
-import { getFutureEpochInMinutes } from "../../utils/getFutureEpoach";
+import { getFutureEpochInMinutes, getTimeForSignature } from "../../utils/getFutureEpoach";
 
 /**
  * @class SolanaWallet
@@ -115,10 +115,13 @@ export default class SolanaWallet {
      * @returns {Promise<String>}>} - return signature of messages
      */
     signMessage = async (params) => {
-        const exp = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
         const header = new Header();
         header.t = 'sip99';
         const payload = new Payload();
+
+        const future = getTimeForSignature();
+        const dateExp = new Date(future * 1000);
+        
 
         payload.domain = params.domain || '';
         payload.address = this.SolanaConfig.address.toString();
@@ -127,7 +130,7 @@ export default class SolanaWallet {
         payload.version = '1';
         payload.chainId = 3;
         payload.nonce = params.nonce || '';
-        payload.expirationTime = exp.toISOString();
+        payload.expirationTime = dateExp.toISOString();
         payload.issuedAt = new Date().toISOString();
 
         const message = new SIWS({ header, payload });
