@@ -133,14 +133,15 @@ export default class FunnyFunSdk {
      * @param {string} amountLocked
      * @param {number} timeLocked
      * @param {BigInt} initialbuyAmount
+     * @param {String} maxSupply
      * @param {String} [metadataUrl]
      * @returns {Promise<String>}
      */
-    deployToken = async (tokenName, tokenSymbol, isLocked, amountLocked, timeLocked, initialbuyAmount, metadataUrl = undefined) => {
+    deployToken = async (tokenName, tokenSymbol, isLocked, amountLocked, timeLocked, initialbuyAmount, maxSupply, metadataUrl = undefined) => {
         if (!this.blockchain) {
             await this.getBlockchainData();
         }
-        
+
         try {
             const deploy = await this.config.wallet.createToken(
                 tokenName,
@@ -150,6 +151,7 @@ export default class FunnyFunSdk {
                 timeLocked,
                 initialbuyAmount,
                 this.blockchain?.tokenFactoryContractAddress,
+                maxSupply,
                 metadataUrl,
                 this.blockchain?.tokenCreationFee
             );
@@ -272,21 +274,21 @@ export default class FunnyFunSdk {
         
         try {
             let initialBuyAmount = BigInt(0);
+            const premarketPrice = await this.config.api.premarketRequest({
+                blockchainKey: this.blockchain?.key ?? '',
+                quoteTokenId: params.quoteTokenId,
+                price: params.initialBuyPrice
+            });
+
             if (exactInitialBuy > 0) {
                 const exactPlarformBalance = ethers.parseUnits(params.initialBuyPrice, platformBalance.tokenDecimals);
                 if (exactPlarformBalance < 0) throw new Error(`Insufficient balance user on platform, please deposit first`);
-
-                const premarketPrice = await this.config.api.premarketRequest({
-                    blockchainKey: this.blockchain?.key ?? '',
-                    quoteTokenId: params.quoteTokenId,
-                    price: params.initialBuyPrice
-                });
 
                 params.amountLocked = premarketPrice.amount;
 
                 if (this.config.network === DEFAULT_NETWORK_WALLET.solana) {
                     initialBuyAmount = parseUnits(premarketPrice.amount, platformBalance.tokenDecimals);
-                    const tokenSupply = DEFAULT_TOKEN_SUPPLY * 10 ** platformBalance.tokenDecimals;
+                    const tokenSupply = Number(premarketPrice.baseTokenSupply) * 10 ** platformBalance.tokenDecimals;
                     const streamFlow = initialBuyAmount / 100n;
                     params.amountLocked = (BigInt(tokenSupply) - initialBuyAmount - streamFlow).toString();
                 }
@@ -336,6 +338,7 @@ export default class FunnyFunSdk {
                     lockAmount,
                     timeLocked,
                     initialBuyAmount,
+                    premarketPrice.baseTokenSupply,
                     metadataUrl
                 );
         
@@ -352,6 +355,7 @@ export default class FunnyFunSdk {
                     lockAmount,
                     timeLocked,
                     BigInt(0),
+                    premarketPrice.baseTokenSupply,
                     metadataUrl
                 );
         

@@ -142,9 +142,10 @@ export default class EVMWallet {
      * @param {string} amountLocked
      * @param {number} timeLocked
      * @param {BigInt} initialbuyAmount
+     * @param {string} maxSupply
      * @returns {Promise<String|any>} - returning hash transaction of create token
      */
-    createToken = async (tokenName, tokenSymbol, isLocked, amountLocked, timeLocked, initialbuyAmount, factoryAddress) => {
+    createToken = async (tokenName, tokenSymbol, isLocked, amountLocked, timeLocked, initialbuyAmount, factoryAddress, maxSupply) => {
         if(!isHex(factoryAddress)) throw new Error(`Invalid factory address format`);
         const contract = new ethers.Contract(factoryAddress, this.EvmConfig.abiFactory, this.EvmConfig.wallet);
         

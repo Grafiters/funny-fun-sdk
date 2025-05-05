@@ -19,5 +19,5 @@ import { DEFAULT_NETWORK_WALLET } from "../contsant";
  * @property {(query: import("../service/api/constant").tradeQuery) => Promise<import("../service/api/constant").trades[]>} trade - get all trade history
  * @property {(params: import("../service/api/constant").tokenOrder) => Promise<{message: string, orderUid: string}>} orderCreation - post and make new order on market
  * @property {(params: import("../service/api/constant").marketRequest) => Promise<import("../service/api/constant").amountData>} estimatedAmountMarkets - to get outpyt amount or price spesified by market tyep on sell or buy and amount or price
- * @property {(body: import("../service/api/constant").preMarketRequest) => Promise<{amount: string, formattedAmount: string}>} premarketRequest - get premarket initial price token when on create token is locked
+ * @property {(body: import("../service/api/constant").preMarketRequest) => Promise<import("../service/api/constant").preMarketResponse>} premarketRequest - get premarket initial price token when on create token is locked
  */

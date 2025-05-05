@@ -391,13 +391,13 @@ export default class Platform {
     /**
      * get premarket price data for initial create token when token is locked
      * @param {import("./constant").preMarketRequest} body
-     * @returns {Promise<{amount: string, formattedAmount: string}>}
+     * @returns {Promise<import("./constant").preMarketResponse>}
      */
     premarketRequest = async(body) => {
         try {
             const req = await this.fetch.post(`/premarket-buy-amount`, body);
 
-            /** @type {{amount: string, formattedAmount: string}} */
+            /** @type {import("./constant").preMarketResponse} */
             return req.data
         } catch (/** @type {any} */ error) {
             throw new Error(error);

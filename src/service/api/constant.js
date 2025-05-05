@@ -396,3 +396,14 @@ import { PublicKey } from "@solana/web3.js";
  * @property {string} quoteTokenId
  * @property {string} price
  */
+
+/**
+ * @typedef {Object} preMarketResponse
+ * @property {string} blockchainKey
+ * @property {string} maxInitialBuyPrice
+ * @property {string} formattedMaxInitialBuyPrice
+ * @property {number} baseTokenDecimals
+ * @property {string} baseTokenSupply
+ * @property {string} amount
+ * @property {string} formattedAmount
+ */
