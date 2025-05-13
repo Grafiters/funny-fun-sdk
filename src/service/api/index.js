@@ -154,7 +154,7 @@ export default class Platform {
     /**
      * get token data spesified by network
      * @param {String} [blockchainKey] - blockchain key of network
-     * @param {String} [availableAsQuote] - available quote 
+     * @param {boolean} [availableAsQuote] - available quote 
      * @returns {Promise<import("./constant").tokenLists[]>}
      */
     tokens = async (blockchainKey, availableAsQuote) => {

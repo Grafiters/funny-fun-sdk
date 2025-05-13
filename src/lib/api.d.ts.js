@@ -10,7 +10,7 @@ import { DEFAULT_NETWORK_WALLET } from "../contsant";
  * @property {(blockchainKey: string) => Promise<any>} authCheck - to check authenticate wallet user on platform
  * @property {(params: import("../service/api/constant").tokenMetaData) => Promise<{tokenMetadataUrl: string}>} uploadMetaData - upload metadata on platform only work for solana network
  * @property {(params: import("../service/api/constant").tokens) => Promise<any>} uploadTokenData - upload token data
- * @property {(blockchainKey?: string) => Promise<import("../service/api/constant").tokenLists[]>} tokens - get all list tokens from spesified network wallet connection
+ * @property {(blockchainKey?: string | undefined, availableAsQuote?: boolean | undefined) => Promise<import("../service/api/constant").tokenLists[]>} tokens - get all list tokens from spesified network wallet connection
  * @property {(query: import("../service/api/constant").depositQuery) => Promise<import("../service/api/constant").deposits[]>} deposit - get all deposit data
  * @property {(params: import("../service/api/constant").withdrawalRequest) => Promise<{message: string, withdrawalUid: {uid: string}}>} withdrawalRequest - create withdraw request
  * @property {(query: import("../service/api/constant").withdrawalQuery) => Promise<import("../service/api/constant").withdrawals[]>} withdraw - get all withdraw data

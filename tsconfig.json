@@ -4,7 +4,7 @@
     "module": "ESNext",
     "moduleResolution": "node",
     "declaration": true,
-    "declarationDir": "./dist/types",
+    "declarationDir": "./dist",
     "emitDeclarationOnly": true,
     "allowJs": true,
     "checkJs": true,

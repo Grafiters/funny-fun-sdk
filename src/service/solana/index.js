@@ -67,12 +67,6 @@ export default class SolanaWallet {
             throw new Error("Invalid privateKey format. Must be base64 or hex.");
         }
 
-        if (!options.chainId) {
-            throw new Error('chain id is required.');
-        }
-        /** @type {number|undefined} */
-        this.chainId = options.chainId;
-
         if (!options.cluster) {
             throw new Error('Rpc Url is required.');
         }
@@ -157,7 +151,7 @@ export default class SolanaWallet {
      * @param {String} [tokenCreationFee] - an creation fee
      * @returns {Promise<String|any>} - returning hash transaction of create token
      */
-    createToken = async (tokenName, tokenSymbol, isLocked, amountLocked, timeLocked, initialbuyAmount, maxSupply, factoryAddress, metadataUrl, tokenCreationFee) => {
+    createToken = async (tokenName, tokenSymbol, isLocked, amountLocked, timeLocked, initialbuyAmount, factoryAddress, maxSupply, metadataUrl, tokenCreationFee) => {
         if (!metadataUrl){
             throw new Error(`meta data url is required`);
         }
@@ -165,11 +159,14 @@ export default class SolanaWallet {
         if (!tokenCreationFee){
             throw new Error(`token creation is required`);
         }
+
         const tokenKeypair = Keypair.generate();
+        
         const rentExamp = await getMinimumBalanceForRentExemptMint(this.SolanaConfig.provider);
         const space = getMintLen([]);
         const tokenDecimals = 6;
-        const tokenSupply = Number(maxSupply) * 10 ** tokenDecimals;
+
+        const tokenSupply = Number(maxSupply);
         const transferAddress = factoryAddress;
         const feeAmount = parseUnits(tokenCreationFee, tokenDecimals);
         const tokenAddress = tokenKeypair.publicKey.toString();
@@ -307,7 +304,7 @@ export default class SolanaWallet {
                 mint,
                 toTokenAddress,
                 this.SolanaConfig.address,
-                Number(amountLocked),
+                isLocked ? Number(amountLocked) : tokenSupply,
                 tokenDecimals,
             );
             tx.add(transferSupplyToken);

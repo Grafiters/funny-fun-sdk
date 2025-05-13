@@ -7,6 +7,12 @@ import { filterBlockchainNetwork } from "./utils";
 import WebSocket from 'ws';
 import { ethers, parseUnits } from "ethers";
 
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
 /**
  * @class FunnyFunSdk
  * @classdesc software development kit of funny fun platform with 2 type network blockchain (evm, and solana)
@@ -58,15 +64,18 @@ export default class FunnyFunSdk {
     
     /**
      * get lis of all token from spesified network
+     * @param {boolean} [availableAsQuote]
      * @returns {Promise<import("./service/api/constant").tokenLists[]>}
      */
-    tokenLists = async () => {
+    tokenLists = async (availableAsQuote) => {
         if (!this.blockchain) {
-            await this.getBlockchainData();
+            const bc = await this.getBlockchainData();
+            
             if (!this.blockchain) throw new Error("Blockchain data failed to load.");
         }
+
         try {
-            const req = await this.config.api.tokens(this.blockchain?.key);
+            const req = await this.config.api.tokens(this.blockchain?.key, availableAsQuote);
 
             /**@type {import("./service/api/constant").tokenLists[]} */
             return req;
@@ -105,9 +114,14 @@ export default class FunnyFunSdk {
      */
     getBlockchainData = async() => {
         await this.config.api.checkStatusServer(this.config.options.serverUrl);
+        
+        let solanaHash = '';
+        if (this.config.network === DEFAULT_NETWORK_WALLET.solana) {
+            solanaHash = await this.config.walletConfig.provider.getGenesisHash();
+        }
 
-        const blcokchain = await this.config.api.blockchains();
-        const filteredBlockchain = filterBlockchainNetwork(blcokchain, this.config.network, this.config.options.chainId);
+        const blcokchain = await this.config.api.blockchains();        
+        const filteredBlockchain = filterBlockchainNetwork(blcokchain, this.config.network, solanaHash, this.config.options.chainId);
 
         this.blockchain = filteredBlockchain;
         return filteredBlockchain;
@@ -137,12 +151,20 @@ export default class FunnyFunSdk {
      * @param {String} [metadataUrl]
      * @returns {Promise<String>}
      */
-    deployToken = async (tokenName, tokenSymbol, isLocked, amountLocked, timeLocked, initialbuyAmount, maxSupply, metadataUrl = undefined) => {
+    deployToken = async (
+        tokenName,
+        tokenSymbol,
+        isLocked,
+        amountLocked,
+        timeLocked,
+        initialbuyAmount,
+        maxSupply,
+        metadataUrl = undefined) => {
         if (!this.blockchain) {
             await this.getBlockchainData();
         }
 
-        try {
+        try {            
             const deploy = await this.config.wallet.createToken(
                 tokenName,
                 tokenSymbol,
@@ -270,7 +292,6 @@ export default class FunnyFunSdk {
         const filteredBalance = accountBalance.filter((item) => item.tokenId === params.quoteTokenId);
         const platformBalance = filteredBalance[0];
         const exactInitialBuy = ethers.parseUnits(params.initialBuyPrice, platformBalance.tokenDecimals);
-
         
         try {
             let initialBuyAmount = BigInt(0);
@@ -288,7 +309,7 @@ export default class FunnyFunSdk {
 
                 if (this.config.network === DEFAULT_NETWORK_WALLET.solana) {
                     initialBuyAmount = parseUnits(premarketPrice.amount, platformBalance.tokenDecimals);
-                    const tokenSupply = Number(premarketPrice.baseTokenSupply) * 10 ** platformBalance.tokenDecimals;
+                    const tokenSupply = Number(premarketPrice.baseTokenSupply);
                     const streamFlow = initialBuyAmount / 100n;
                     params.amountLocked = (BigInt(tokenSupply) - initialBuyAmount - streamFlow).toString();
                 }
@@ -316,9 +337,8 @@ export default class FunnyFunSdk {
                     tokenTwitter: params.tokenTwitter,
                     tokenTelegram: params.tokenTelegram
                 }
-    
+
                 const url = await this.uplaodMetaData(metadata);
-    
                 metadataUrl = url.tokenMetadataUrl;
             }
             
@@ -343,7 +363,7 @@ export default class FunnyFunSdk {
                 );
         
                 params.txHash = deployToken;
-
+                
                 update = await this.createToken(params);
             }else{
                 const listenPromise = this.listener(this.blockchain?.tokenFactoryContractAddress, params)

@@ -1,7 +1,7 @@
-// @ts-check
+// @ts-nocheck
 
 import axios from "axios";
-import { DEFAULT_DOMAIN, DEFAULT_FEATURE, DEFAULT_NETWORK_WALLET, DEFAULT_VERSION } from "./contsant";
+import { DEFAULT_DOMAIN, DEFAULT_FEATURE, DEFAULT_NETWORK_WALLET, DEFAULT_VERSION, SOLANA_NETWORK_MAINNET_ADDRESS } from "./contsant";
 
 /**
  * @param {String} subdomain - sub-domain url from website
@@ -39,16 +39,23 @@ export const baseRequest = (baseUrl, secure = true) => {
 /**
  * @param {import("./service/api/constant").NetworkInfo[]} data
  * @param {String} network
+ * @param {String} solGenesisHash
  * @param {Number} [chainId]
  * @returns {import("./service/api/constant").NetworkInfo}
  */
-export const filterBlockchainNetwork = (data, network, chainId) => {
+export const filterBlockchainNetwork = (data, network, solGenesisHash, chainId) => {
     let filtered;
     if (typeof chainId === 'undefined' || typeof chainId !== 'number' || isNaN(chainId) || network === DEFAULT_NETWORK_WALLET.solana) {
-        filtered = data.filter(item => item.key.startsWith('solana'));
+        if (solGenesisHash === SOLANA_NETWORK_MAINNET_ADDRESS) {
+            filtered = data.filter(item => item.key.startsWith(`solana:${SOLANA_NETWORK_MAINNET_ADDRESS}`));
+        } else {
+            filtered = data.filter(item => item.key.startsWith(`solana`) && !item.key.endsWith(SOLANA_NETWORK_MAINNET_ADDRESS));
+        }
     } else {
         filtered = data.filter(item => item.key.endsWith(chainId.toString()));
     }
 
-    return filtered[0];
+    if (filtered.length === 1) {
+        return filtered[0];
+    }
 }
